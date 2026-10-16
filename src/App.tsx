@@ -13,7 +13,7 @@ import { currentSeason, seasonList } from './domain/season';
 import { baseForCount } from './domain/stats';
 import { seasonRows } from './domain/views';
 import * as autoBackup from './data/autoBackup';
-import { readOwnClub, saveOwnClub } from './data/ownClub';
+import { loadOwnClub, saveOwnClub } from './data/ownClub';
 import { fetchClub, loadCachedClub, type ClubState } from './data/clubData';
 import type { FileStatus } from './data/autoBackup';
 import * as store from './data/store';
@@ -54,6 +54,26 @@ function currentTab(stack: readonly Screen[]): Tab | null {
   return TAB_ORDER.find((t) => stack.includes(t)) ?? null;
 }
 
+/** 右上のボタン：ライトとダークを入れ替え、端末に覚えておく（次に開いたときも同じ。public/theme.js）。 */
+function toggleTheme(e: React.MouseEvent<HTMLButtonElement>): void {
+  const r = document.documentElement;
+  const cur = r.dataset.theme ?? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  const next = cur === 'dark' ? 'light' : 'dark';
+  r.dataset.theme = next;
+  try {
+    localStorage.setItem(THEME_KEY, next);
+  } catch {
+    /* localStorage が使えない：この画面を開いている間だけ */
+  }
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', THEME_COLOR[next]);
+  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    e.currentTarget.animate([{ transform: 'rotate(0deg)' }, { transform: 'rotate(180deg)' }], {
+      duration: 500,
+      easing: 'cubic-bezier(.2,.8,.2,1)',
+    });
+  }
+}
+
 export function App(): JSX.Element {
   const [data, setData] = useState<AppData>(EMPTY);
   const [loaded, setLoaded] = useState(false);
@@ -67,7 +87,7 @@ export function App(): JSX.Element {
   const [focus, setFocus] = useState<FocusEntry[]>([]);
   const [backupOpen, setBackupOpen] = useState(false);
   // 自分のクラブの名前（メンバー画面で登録。スタッツのクラブ順位で使う）。
-  const [ownClub, setOwnClubState] = useState<string>(readOwnClub);
+  const [ownClub, setOwnClub] = useState('');
   const [fileStatus, setFileStatus] = useState<FileStatus>({ state: 'unsupported' });
   const [persisted, setPersisted] = useState<boolean | null>(null);
   const backupTimer = useRef<number | undefined>(undefined);
@@ -159,6 +179,7 @@ export function App(): JSX.Element {
           d = await sampleData();
         }
         setData(d);
+        setOwnClub(await loadOwnClub());
         setEntry({ date: todayIso(), draft: draftFromRecords(d.records, todayIso(), d.snapshots) });
         // 起動時: 今の状態を履歴に残し（変わっていなければ何もしない）、保存領域の保護を頼む。
         scheduleBackup(d, 0);
@@ -383,214 +404,192 @@ export function App(): JSX.Element {
     [],
   );
 
-  function setOwnClub(name: string): void {
-    setOwnClubState(name);
-    saveOwnClub(name);
+  function changeOwnClub(name: string): void {
+    setOwnClub(name);
+    saveOwnClub(name).catch(() => undefined);
   }
 
   /** 自分のクラブの入力の候補：クラブ順位のいちばん新しいシーズンに載ったクラブ。 */
   const latestClubSeason = club.data?.rounds.at(-1)?.season;
   const ownClubCandidates = club.data && latestClubSeason != null ? clubNames(club.data, latestClubSeason) : [];
 
-  function toggleTheme(e: React.MouseEvent<HTMLButtonElement>): void {
-    const r = document.documentElement;
-    // ライトとダークを入れ替え、端末に覚えておく（次に開いたときも同じ。public/theme.js）。
-    const cur = r.dataset.theme ?? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-    const next = cur === 'dark' ? 'light' : 'dark';
-    r.dataset.theme = next;
-    try {
-      localStorage.setItem(THEME_KEY, next);
-    } catch {
-      /* localStorage が使えない：この画面を開いている間だけ */
-    }
-    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', THEME_COLOR[next]);
-    if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      e.currentTarget.animate([{ transform: 'rotate(0deg)' }, { transform: 'rotate(180deg)' }], {
-        duration: 500,
-        easing: 'cubic-bezier(.2,.8,.2,1)',
-      });
-    }
-  }
-
   const tab = currentTab(stack);
   const dirty = entryDirty();
 
   return (
-    <>
-      <div className="app">
-        <header className="top">
-          <button type="button" className="brand" onClick={() => setStack(['menu'])} aria-label="メニューへ">
-            <StatMark />
-            <span>Stat Hub</span>
+    <div className="app">
+      <header className="top">
+        <button type="button" className="brand" onClick={() => setStack(['menu'])} aria-label="メニューへ">
+          <StatMark />
+          <span>Stat Hub</span>
+        </button>
+        <nav className="navpill" aria-label="タブ">
+          <button type="button" className="nbtn" aria-current={tab === 'record' ? 'page' : undefined} onClick={() => navTab('record')}>
+            記録
+            {dirty && <i className="badge" aria-label="未保存" />}
           </button>
-          <nav className="navpill" aria-label="タブ">
-            <button type="button" className="nbtn" aria-current={tab === 'record' ? 'page' : undefined} onClick={() => navTab('record')}>
-              記録
-              {dirty && <i className="badge" aria-label="未保存" />}
-            </button>
-            <button type="button" className="nbtn" aria-current={tab === 'members' ? 'page' : undefined} onClick={() => navTab('members')}>
-              メンバー
-            </button>
-            <button type="button" className="nbtn" aria-current={tab === 'stats' ? 'page' : undefined} onClick={() => navTab('stats')}>
-              スタッツ
-            </button>
-          </nav>
-          <div className="top-r">
-            <button type="button" className="theme-toggle" aria-label="表示テーマを切り替える" onClick={toggleTheme}>
-              <SunIcon />
-            </button>
-          </div>
-        </header>
+          <button type="button" className="nbtn" aria-current={tab === 'members' ? 'page' : undefined} onClick={() => navTab('members')}>
+            メンバー
+          </button>
+          <button type="button" className="nbtn" aria-current={tab === 'stats' ? 'page' : undefined} onClick={() => navTab('stats')}>
+            スタッツ
+          </button>
+        </nav>
+        <div className="top-r">
+          <button type="button" className="theme-toggle" aria-label="表示テーマを切り替える" onClick={toggleTheme}>
+            <SunIcon />
+          </button>
+        </div>
+      </header>
 
-        <main className="main" ref={mainRef}>
-          {loadErr && (
-            <div className="pane">
-              <div className="notice warn">
-                データを読み込めませんでした（{loadErr}）。プライベートブラウズでは保存が使えないことがあります。
-              </div>
+      <main className="main" ref={mainRef}>
+        {loadErr && (
+          <div className="pane">
+            <div className="notice warn">
+              データを読み込めませんでした（{loadErr}）。プライベートブラウズでは保存が使えないことがあります。
             </div>
-          )}
-          {loaded && !loadErr && (
-            <>
-              {screen === 'menu' && (
-                <Menu
-                  fileStatus={fileStatus}
-                  onResumeFile={() => void resumeFile()}
-                  demo={DEMO}
-                  onResetDemo={() => {
-                    void (async () => {
-                      const sample = await sampleData();
-                      const nd = await run(() => store.replaceAll(sample), 'サンプルデータに戻しました');
-                      if (!nd) setData(sample);
-                      setEntry({ date: today, draft: draftFromRecords(sample.records, today, sample.snapshots) });
-                    })();
-                  }}
-                  data={data}
-                  today={today}
-                  season={nowSeason}
-                  onRecord={() => {
-                    openRecord();
-                    push('record');
-                  }}
-                  onMembers={() => push('members')}
-                  onStats={() => {
-                    setViewSeason(null);
-                    push('stats');
-                  }}
-                  onHistory={() => push('history')}
-                  onSeasons={() => push('seasons')}
-                  onBackup={() => setBackupOpen(true)}
-                />
-              )}
-              {screen === 'record' && (
-                <RecordScreen
-                  data={data}
-                  entry={entry}
-                  today={today}
-                  onDraft={(draft) => setEntry((e) => ({ ...e, draft }))}
-                  onDate={(date) => setEntry({ date, draft: draftFromRecords(data.records, date, data.snapshots) })}
-                  onSave={() => void saveDay()}
-                  onBack={pop}
-                  onHistory={() => push('history')}
-                  onMembers={() => setStack(['menu', 'members'])}
-                />
-              )}
-              {screen === 'history' && (
-                <HistoryScreen
-                  data={data}
-                  seasons={seasons}
-                  season={season}
-                  onSeason={setViewSeason}
-                  onOpenDate={(date) => {
-                    if (entryDirty() && entry.date !== date) {
-                      showToast('記録画面に保存していない入力があります。先に保存か破棄をしてください', 'err');
-                      setStack(['menu', 'record']);
-                      return;
-                    }
-                    openRecord(date);
-                    setStack(['menu', 'record']);
-                  }}
-                  onDelete={(r) => void deleteRecord(r)}
-                  onBack={pop}
-                />
-              )}
-              {screen === 'members' && (
-                <MembersScreen
-                  data={data}
-                  today={today}
-                  onSave={saveMember}
-                  onArchive={(m, a) => void setArchived(m, a)}
-                  onPurge={(m) => void purge(m)}
-                  onDeleteSnapshot={(s) => void run(() => store.deleteSnapshot(s.id), 'スタッツを削除しました')}
-                  ownClub={ownClub}
-                  clubNames={ownClubCandidates}
-                  onOwnClub={setOwnClub}
-                  onBack={pop}
-                />
-              )}
-              {screen === 'stats' && (
-                <StatsScreen
-                  data={data}
-                  club={club}
-                  today={today}
-                  seasons={seasons}
-                  season={season}
-                  onSeason={setViewSeason}
-                  focus={focus}
-                  onToggleFocus={(id) => setFocus((f) => toggleFocus(f, id))}
-                  onClearFocus={() => setFocus([])}
-                  ownClub={ownClub}
-                  onRegisterClub={() => navTab('members')}
-                  onBack={pop}
-                />
-              )}
-              {screen === 'seasons' && (
-                <SeasonsScreen
-                  data={data}
-                  seasons={seasons}
-                  today={today}
-                  onSave={(no, o: SeasonOverride | null) => void run(() => store.saveSeason(no, o), `S${no} の設定を保存しました`)}
-                  onBack={pop}
-                />
-              )}
-            </>
-          )}
-        </main>
-
-        {backupOpen && (
-          <BackupModal
-            data={data}
-            file={fileStatus}
-            persisted={persisted}
-            onChooseFile={async () => {
-              try {
-                if (await autoBackup.chooseFile(data)) showToast('ファイルへの自動保存を始めました');
-              } catch (e) {
-                showToast(`ファイルに書き出せませんでした: ${errText(e)}`, 'err');
-              }
-              setFileStatus(await autoBackup.fileStatus());
-            }}
-            onResumeFile={resumeFile}
-            onStopFile={async () => {
-              await autoBackup.stopFile();
-              setFileStatus(await autoBackup.fileStatus());
-            }}
-            onImport={async (d, label) => {
-              // 置き換える前の状態を必ず履歴に残してから読み込む。
-              window.clearTimeout(backupTimer.current);
-              await autoBackup.snapshot(data).catch(() => undefined);
-              const nd = await run(() => store.replaceAll(d), `${label} を読み込みました`);
-              if (nd) {
-                setEntry({ date: today, draft: draftFromRecords(nd.records, today, nd.snapshots) });
-                setFocus((f) => f.filter((x) => nd.members.some((m) => m.id === x.id)));
-              }
-            }}
-            onClose={() => setBackupOpen(false)}
-          />
+          </div>
         )}
+        {loaded && !loadErr && (
+          <>
+            {screen === 'menu' && (
+              <Menu
+                fileStatus={fileStatus}
+                onResumeFile={() => void resumeFile()}
+                demo={DEMO}
+                onResetDemo={() => {
+                  void (async () => {
+                    const sample = await sampleData();
+                    const nd = await run(() => store.replaceAll(sample), 'サンプルデータに戻しました');
+                    if (!nd) setData(sample);
+                    setEntry({ date: today, draft: draftFromRecords(sample.records, today, sample.snapshots) });
+                  })();
+                }}
+                data={data}
+                today={today}
+                season={nowSeason}
+                onRecord={() => {
+                  openRecord();
+                  push('record');
+                }}
+                onMembers={() => push('members')}
+                onStats={() => {
+                  setViewSeason(null);
+                  push('stats');
+                }}
+                onHistory={() => push('history')}
+                onSeasons={() => push('seasons')}
+                onBackup={() => setBackupOpen(true)}
+              />
+            )}
+            {screen === 'record' && (
+              <RecordScreen
+                data={data}
+                entry={entry}
+                today={today}
+                onDraft={(draft) => setEntry((e) => ({ ...e, draft }))}
+                onDate={(date) => setEntry({ date, draft: draftFromRecords(data.records, date, data.snapshots) })}
+                onSave={() => void saveDay()}
+                onBack={pop}
+                onHistory={() => push('history')}
+                onMembers={() => setStack(['menu', 'members'])}
+              />
+            )}
+            {screen === 'history' && (
+              <HistoryScreen
+                data={data}
+                seasons={seasons}
+                season={season}
+                onSeason={setViewSeason}
+                onOpenDate={(date) => {
+                  if (entryDirty() && entry.date !== date) {
+                    showToast('記録画面に保存していない入力があります。先に保存か破棄をしてください', 'err');
+                    setStack(['menu', 'record']);
+                    return;
+                  }
+                  openRecord(date);
+                  setStack(['menu', 'record']);
+                }}
+                onDelete={(r) => void deleteRecord(r)}
+                onBack={pop}
+              />
+            )}
+            {screen === 'members' && (
+              <MembersScreen
+                data={data}
+                today={today}
+                onSave={saveMember}
+                onArchive={(m, a) => void setArchived(m, a)}
+                onPurge={(m) => void purge(m)}
+                onDeleteSnapshot={(s) => void run(() => store.deleteSnapshot(s.id), 'スタッツを削除しました')}
+                ownClub={ownClub}
+                clubNames={ownClubCandidates}
+                onOwnClub={changeOwnClub}
+                onBack={pop}
+              />
+            )}
+            {screen === 'stats' && (
+              <StatsScreen
+                data={data}
+                club={club}
+                today={today}
+                seasons={seasons}
+                season={season}
+                onSeason={setViewSeason}
+                focus={focus}
+                onToggleFocus={(id) => setFocus((f) => toggleFocus(f, id))}
+                onClearFocus={() => setFocus([])}
+                ownClub={ownClub}
+                onRegisterClub={() => navTab('members')}
+                onBack={pop}
+              />
+            )}
+            {screen === 'seasons' && (
+              <SeasonsScreen
+                data={data}
+                seasons={seasons}
+                today={today}
+                onSave={(no, o: SeasonOverride | null) => void run(() => store.saveSeason(no, o), `S${no} の設定を保存しました`)}
+                onBack={pop}
+              />
+            )}
+          </>
+        )}
+      </main>
 
-        {toast && <Toast key={toast.key} message={toast.message} kind={toast.kind} go={toast.go} onTap={toast.onTap} onClose={closeToast} />}
-      </div>
-    </>
+      {backupOpen && (
+        <BackupModal
+          data={data}
+          file={fileStatus}
+          persisted={persisted}
+          onChooseFile={async () => {
+            try {
+              if (await autoBackup.chooseFile(data)) showToast('ファイルへの自動保存を始めました');
+            } catch (e) {
+              showToast(`ファイルに書き出せませんでした: ${errText(e)}`, 'err');
+            }
+            setFileStatus(await autoBackup.fileStatus());
+          }}
+          onResumeFile={resumeFile}
+          onStopFile={async () => {
+            await autoBackup.stopFile();
+            setFileStatus(await autoBackup.fileStatus());
+          }}
+          onImport={async (d, label) => {
+            // 置き換える前の状態を必ず履歴に残してから読み込む。
+            window.clearTimeout(backupTimer.current);
+            await autoBackup.snapshot(data).catch(() => undefined);
+            const nd = await run(() => store.replaceAll(d), `${label} を読み込みました`);
+            if (nd) {
+              setEntry({ date: today, draft: draftFromRecords(nd.records, today, nd.snapshots) });
+              setFocus((f) => f.filter((x) => nd.members.some((m) => m.id === x.id)));
+            }
+          }}
+          onClose={() => setBackupOpen(false)}
+        />
+      )}
+
+      {toast && <Toast key={toast.key} message={toast.message} kind={toast.kind} go={toast.go} onTap={toast.onTap} onClose={closeToast} />}
+    </div>
   );
 }
