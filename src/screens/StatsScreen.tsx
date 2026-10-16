@@ -32,7 +32,7 @@ import { SeasonSelect } from './common';
 
 type Mode = 'season' | 'trend';
 const CMP_KEY = 'sh-member-cmp';
-/** 自分のクラブ（クラブ順位の中から利用者が選ぶ。'' は選んでいない）。 */
+/** 自分のクラブの名前（利用者が入力する。'' は入力していない）。 */
 const OWN_KEY = 'sh-own-club';
 
 function readOwn(): string {
@@ -373,7 +373,7 @@ export function StatsScreen(
   const avgRow = memberAverage(rows, club);
   const axis = seasonAxis(data, season);
 
-  // 自分のクラブ（端末に覚えておく）。クラブ順位のパネルで選び、比べる相手の候補からは外す。
+  // 自分のクラブ（端末に覚えておく）。クラブ順位のパネルで名前を入れ、順位表に同じ名前があれば比べる相手の候補からは外す。
   const [ownClub, setOwnClubState] = useState<string>(readOwn);
   function setOwnClub(name: string): void {
     setOwnClubState(name);
@@ -388,7 +388,7 @@ export function StatsScreen(
   const [cmp, setCmp] = useState<string>(readCmp);
   const cd = props.club.data;
   const cmpLatest = cd ? latestRound(cd, season) : null;
-  const cmpClubs = (cmpLatest?.clubs ?? []).filter((c) => c.name !== ownClub);
+  const cmpClubs = (cmpLatest?.clubs ?? []).filter((c) => c.name !== ownClub.trim());
   const cmpPick = pickCmp(cmp, cmpLatest, cmpClubs);
   const cmpStored = storableCmp(cmp, cmpClubs);
   useEffect(() => {
