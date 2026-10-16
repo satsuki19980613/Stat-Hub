@@ -142,7 +142,6 @@ src/
   data/       IndexedDB の保存層・クラブ順位の読み込み・自動バックアップ
   screens/    画面（メニュー・記録・履歴・メンバー・スタッツ・シーズン設定・バックアップ）
   components/ 共通 UI・SVG チャート
-  fonts/      数字・英字のフォント（Inter Tight。SIL Open Font License 1.1。OFL.txt）
   demo/       デモ版のサンプルデータ
 ```
 
