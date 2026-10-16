@@ -1,0 +1,34 @@
+# Cloudflare 配信ヘッダー（Workers Static Assets が読む）。
+# ハッシュ付きアセットは長期不変、SW と index はキャッシュせず更新を即反映（PWA と整合）。
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/sw.js
+  Cache-Control: no-cache
+
+/index.html
+  Cache-Control: no-cache
+
+/manifest.webmanifest
+  Cache-Control: no-cache
+
+/theme.js
+  Cache-Control: no-cache
+
+# クラブ順位（上位30）。main に入るたびに配り直すので、毎回確かめる。
+/data/*
+  Cache-Control: no-cache
+
+# セキュリティヘッダー。全ページ共通。`npm start`（vite preview）も同じ値を使う（vite.config.ts）。
+# 外へは通信しない：記録は端末の中だけに保存し、フォントもこのサイトから配る（src/fonts.css）。connect-src は自分のサイト（data/clubs.json）だけ。
+# style-src 'unsafe-inline'：React が要素ごとの style 属性（グラフの位置・色など）を書くため。スクリプトは 'self' だけ。
+# img-src の data: はタイルの背景（キラの SVG）用。
+# 1行で書くこと（_headers は値の折り返しを許さない）。
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Strict-Transport-Security: max-age=31536000
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
+  Cross-Origin-Opener-Policy: same-origin
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self'; manifest-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'

@@ -1,0 +1,153 @@
+import { InfoButton, InfoList } from '../components/ui';
+import type { FileStatus } from '../data/autoBackup';
+import { shortDate } from '../domain/date';
+import type { AppData } from '../domain/model';
+import { fmtPt } from '../domain/points';
+import { isMatchDay, matchDays, seasonOf, seasonRange } from '../domain/season';
+import { recordsInRange, summarize } from '../domain/stats';
+
+/** 「記録」ボタンの小さな説明（今日がシーズン中か・開催日か）。 */
+function recordHint(inSeason: boolean, matchToday: boolean): string {
+  if (!inSeason) return 'シーズン期間外の日です';
+  return matchToday ? '今日は開催日です。順位を入力します' : '今日は開催日ではありません';
+}
+
+/** メニュー（ルート）。記録・メンバー情報登録・スタッツビューの 3 つと、補助の操作。 */
+export function Menu(props: Readonly<{
+  fileStatus: FileStatus;
+  onResumeFile: () => void;
+  demo: boolean;
+  onResetDemo: () => void;
+  data: AppData;
+  today: string;
+  season: number;
+  onRecord: () => void;
+  onMembers: () => void;
+  onStats: () => void;
+  onHistory: () => void;
+  onSeasons: () => void;
+  onBackup: () => void;
+}>): JSX.Element {
+  const { data, today, season } = props;
+  const range = seasonRange(season, data.seasons);
+  const days = matchDays(season, data.seasons);
+  const held = days.filter((d) => d <= today).length;
+  const sum = summarize(recordsInRange(data.records, range.start, range.end));
+  const active = data.members.filter((m) => !m.archived).length;
+  const todayCount = data.records.filter((r) => r.date === today).length;
+  const inSeason = seasonOf(today, data.seasons) != null;
+  const matchToday = isMatchDay(today, data.seasons);
+
+  return (
+    <div className="pane">
+      {props.demo && (
+        <div className="notice ok demo-note">
+          <b>DEMO</b> サンプルデータ入りのデモ版です。今日を {shortDate(today)} として表示しています。自由に触って大丈夫です。
+          <button type="button" className="lnk" onClick={props.onResetDemo}>
+            サンプルに戻す
+          </button>
+        </div>
+      )}
+      {(props.fileStatus.state === 'needs-permission' || props.fileStatus.state === 'error') && (
+        <div className="notice warn demo-note">
+          ファイルへの自動保存が止まっています（{props.fileStatus.name}）。
+          <button type="button" className="btn sm primary" onClick={props.onResumeFile}>
+            再開
+          </button>
+        </div>
+      )}
+      <h1 className="wordmark">Stat Hub</h1>
+      <p className="tagline">クラブ「燎」のクラブマッチ戦績</p>
+      <div className="hero panel">
+        <div className="hero-top">
+          <span className="eyebrow">CLUB 燎 · CLUB MATCH</span>
+          <span className="season-tag num">S{season}</span>
+        </div>
+        <div className="hero-sub">
+          <span className="num">
+            {shortDate(range.start)} 〜 {shortDate(range.end)}
+          </span>
+          <span>
+            開催 <b className="num">{held}</b>
+            <span className="muted"> / {days.length} 日</span>
+          </span>
+        </div>
+        <div className="hs-grid">
+          <div className="hs-stat">
+            <span className="statlbl">クラブ合計</span>
+            <b className={`hs-val${sum.total < 0 ? ' loss' : ''}`}>
+              {fmtPt(sum.total)}
+              <span className="hs-unit">pt</span>
+            </b>
+          </div>
+          <div className="hs-stat">
+            <span className="statlbl">延べ参加</span>
+            <b className="hs-val">
+              {sum.n}
+              <span className="hs-unit">回</span>
+            </b>
+          </div>
+          <div className="hs-stat">
+            <span className="statlbl">メンバー</span>
+            <b className="hs-val">
+              {active}
+              <span className="hs-unit">人</span>
+            </b>
+          </div>
+        </div>
+      </div>
+
+      <div className="list-h">
+        <span className="pt">
+          <span className="eyebrow">MENU</span>
+          <InfoButton title="このアプリについて">
+            <p>クラブ「燎」のクラブマッチの戦績を記録・集計するアプリです。</p>
+            <InfoList
+              items={[
+                ['記録', '開催日にメンバーの順位を入れます。記録した人が参加、記録しなければ不参加です。'],
+                ['メンバー情報登録', 'プレイヤー名・参加回数・基本スタッツ（任意）。人数に上限はなく、代走のメンバーも登録できます。'],
+                ['スタッツビュー', 'シーズン内の得点推移・加点率・1位率・平均順位・生存ターン数と、シーズンごとの推移。'],
+                ['保存', '記録はこの端末のブラウザの中に保存され、どこにも送りません。変更のたびに自動でバックアップを残します。'],
+                ['クラブ順位', '上位 30 クラブの順位は、ネットにつながったときに自動で読み込みます。'],
+              ]}
+            />
+            <p>機種変更などで移すときは「バックアップ」→「書き出す」でファイルに保存してください。</p>
+          </InfoButton>
+        </span>
+        <span className="rt">{shortDate(today)}</span>
+      </div>
+      <button type="button" className="mbtn hot" onClick={props.onRecord}>
+        <span>
+          記録<small>{recordHint(inSeason, matchToday)}</small>
+        </span>
+        <span className="rt">{todayCount > 0 ? `今日 ${todayCount}人` : 'RECORD'}</span>
+      </button>
+      <button type="button" className="mbtn" onClick={props.onMembers}>
+        <span>
+          メンバー情報登録<small>プレイヤー名・参加回数・基本スタッツ</small>
+        </span>
+        <span className="rt">
+          {active}人
+        </span>
+      </button>
+      <button type="button" className="mbtn" onClick={props.onStats}>
+        <span>
+          スタッツビュー<small>得点推移・加点率・1位率・生存ターン数</small>
+        </span>
+        <span className="rt">STATS</span>
+      </button>
+
+      <div className="subrow">
+        <button type="button" className="btn sm ghost" onClick={props.onHistory}>
+          記録履歴
+        </button>
+        <button type="button" className="btn sm ghost" onClick={props.onSeasons}>
+          シーズン設定
+        </button>
+        <button type="button" className="btn sm ghost" onClick={props.onBackup}>
+          バックアップ
+        </button>
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,720 @@
+import { useEffect, useState } from 'react';
+import { BarChart, LineChart, type LineSeries } from '../components/charts';
+import { ScrollBox } from '../components/ScrollBox';
+import { Back, InfoButton, InfoList, Modal, PaneHead } from '../components/ui';
+import { longDate, shortDate } from '../domain/date';
+import { MAX_FOCUS, slotOf, type FocusEntry } from '../domain/focus';
+import type { AppData, Member } from '../domain/model';
+import { fmtPt, pointsOf } from '../domain/points';
+import { matchDays, seasonRange } from '../domain/season';
+import { fmtNum, fmtRate, matchCountOf, recordsInRange, summarize, type Summary } from '../domain/stats';
+import {
+  TREND_METRICS,
+  clubTotal,
+  md,
+  roundsOnAxis,
+  seasonAxis,
+  seasonCumulative,
+  seasonRows,
+  seasonAverage,
+  seasonsOfMember,
+  trendAverage,
+  trendValue,
+  type MemberSeasonRow,
+  type TrendMetric,
+} from '../domain/views';
+import type { ClubState } from '../data/clubData';
+import { CLUB_CAPACITY, OWN_CLUB, latestRound, perMemberSeries, type ClubEntry, type ClubRound } from '../domain/clubRanking';
+import { ClubPanel } from './ClubPanel';
+import { SeasonSelect } from './common';
+
+type Mode = 'season' | 'trend';
+const CMP_KEY = 'ksh-member-cmp';
+type SortKey = 'name' | 'total' | 'avg' | 'plusRate' | 'winRate' | 'avgRank' | 'n' | 'survival';
+
+const COLS: { key: SortKey; label: string; title: string }[] = [
+  { key: 'total', label: '合計', title: '合計ポイント' },
+  { key: 'avg', label: '平均', title: '平均ポイント' },
+  { key: 'plusRate', label: '加点率', title: '1〜4位の割合' },
+  { key: 'winRate', label: '1位率', title: '1位の割合' },
+  { key: 'avgRank', label: '平均順位', title: '平均順位' },
+  { key: 'n', label: '参加', title: '参加数' },
+  { key: 'survival', label: '生存T', title: '生存ターン数（シーズン末時点）' },
+];
+
+function sortValue(r: MemberSeasonRow, k: SortKey): number | string | null {
+  switch (k) {
+    case 'name':
+      return r.member.name;
+    case 'n':
+      return r.sum.n;
+    case 'total':
+      return r.sum.n ? r.sum.total : null;
+    case 'survival':
+      return r.survival;
+    default:
+      return r.sum[k];
+  }
+}
+
+function fmtMetric(metric: TrendMetric, v: number): string {
+  switch (metric) {
+    case 'total':
+      return fmtPt(Math.round(v));
+    case 'avg':
+      return v.toFixed(2);
+    case 'plusRate':
+    case 'winRate':
+      return `${v.toFixed(0)}%`;
+    case 'avgRank':
+      return v.toFixed(2);
+    case 'survival':
+      return v.toFixed(1);
+  }
+}
+
+/** グラフの目盛り。 */
+function fmtTick(metric: TrendMetric, v: number): string {
+  if (metric === 'total') return fmtPt(Math.round(v));
+  if (metric === 'plusRate' || metric === 'winRate') return `${v.toFixed(0)}%`;
+  return String(Number(v.toFixed(1)));
+}
+
+/** ポイントの増減に応じたクラス（+ は gain、− は loss）。 */
+function toneOf(v: number): string {
+  if (v > 0) return 'gain';
+  if (v < 0) return 'loss';
+  return '';
+}
+
+/** 強調メンバーの色クラス（強調していなければ空）。 */
+function slotClass(slot: number | null): string {
+  return slot == null ? '' : ` s${slot + 1}`;
+}
+
+type SortState = { key: SortKey; desc: boolean };
+
+/** 並べ替え中の列の印。名前は昇順が既定なので、▲▼ の向きがほかの列と逆。 */
+function sortMark(sort: SortState, key: SortKey): string {
+  if (sort.key !== key) return '';
+  const up = key === 'name' ? sort.desc : !sort.desc;
+  return up ? ' ▲' : ' ▼';
+}
+
+function ariaSortOf(sort: SortState, key: SortKey): 'descending' | 'ascending' | undefined {
+  if (sort.key !== key) return undefined;
+  return sort.desc ? 'descending' : 'ascending';
+}
+
+function compareRows(sort: SortState): (a: MemberSeasonRow, b: MemberSeasonRow) => number {
+  // 平均順位は小さいほど良いので、「良い順」を既定の向きにそろえる。
+  const dir = sort.key === 'avgRank' || sort.key === 'name' ? !sort.desc : sort.desc;
+  return (a, b) => {
+    const va = sortValue(a, sort.key);
+    const vb = sortValue(b, sort.key);
+    if (va == null && vb == null) return a.member.order - b.member.order;
+    if (va == null) return 1;
+    if (vb == null) return -1;
+    const c = typeof va === 'string' ? va.localeCompare(String(vb), 'ja') : (va as number) - (vb as number);
+    return (dir ? -c : c) || a.member.order - b.member.order;
+  };
+}
+
+type AvgRow = { total: number | null; n: number | null; survival: number | null };
+
+/** メンバー平均（そのシーズンに 1 回以上参加した人で割る）。 */
+function memberAverage(rows: readonly MemberSeasonRow[], club: Summary): AvgRow {
+  const players = rows.filter((r) => r.sum.n > 0);
+  const survs = players.map((r) => r.survival).filter((v): v is number => v != null);
+  return {
+    total: players.length ? club.total / players.length : null,
+    n: players.length ? club.n / players.length : null,
+    survival: survs.length ? survs.reduce((a, b) => a + b, 0) / survs.length : null,
+  };
+}
+
+/** シーズンごとの値を新しい順に（表は新しいシーズンが左）。 */
+function bySeasonDesc(asc: readonly number[], values: readonly (number | null)[]): { no: number; v: number | null }[] {
+  return asc.map((no, i) => ({ no, v: values[i] ?? null })).reverse();
+}
+
+function readCmp(): string {
+  try {
+    return localStorage.getItem(CMP_KEY) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+/** 比べる相手として出せるもの（上位30平均か、最新の節にいるクラブ）。それ以外は ''。 */
+function pickCmp(cmp: string, latest: ClubRound | null, clubs: readonly ClubEntry[]): string {
+  if (cmp === 'avg' && latest) return 'avg';
+  return clubs.some((c) => c.name === cmp) ? cmp : '';
+}
+
+/** 端末に保存してよい値に限る（'' / 'avg' / いまの一覧にあるクラブ名）。一覧に無いときは undefined で、保存しない。 */
+function storableCmp(cmp: string, clubs: readonly ClubEntry[]): string | undefined {
+  if (cmp === '') return '';
+  if (cmp === 'avg') return 'avg';
+  return clubs.find((c) => c.name === cmp)?.name;
+}
+
+/** 他クラブ（1 人あたり）の線。 */
+function cmpLineOf(data: AppData, season: number, cd: ClubState['data'], pick: string, axisLen: number): LineSeries | null {
+  if (!cd || !pick) return null;
+  return {
+    id: '__cmp',
+    name: pick === 'avg' ? '上位30平均' : pick,
+    values: roundsOnAxis(data, season, perMemberSeries(cd, season, pick, axisLen)),
+    slot: 0,
+    tone: 'cmp',
+  };
+}
+
+type Row = Omit<LineSeries, 'slot'> & { slot: number | null };
+const onlyFocused = (xs: Row[]): LineSeries[] => xs.filter((x): x is LineSeries => x.slot != null);
+
+/** 注目メンバーの選択（グラフの凡例を兼ねる）。 */
+function MemberChips(props: Readonly<{ members: Member[]; focus: FocusEntry[]; onToggle: (id: string) => void; onClear: () => void }>): JSX.Element {
+  const full = props.focus.length >= MAX_FOCUS;
+  return (
+    <div className="chips-wrap">
+      <fieldset className="chips" aria-label="グラフで強調するメンバー">
+        <span className="chip legend-avg" title="点線: メンバー平均">
+          <i className="key" />平均
+        </span>
+        {props.members.map((m) => {
+          const slot = slotOf(props.focus, m.id);
+          return (
+            <button
+              key={m.id}
+              type="button"
+              className={slot == null ? 'chip' : `chip on s${slot + 1}`}
+              aria-pressed={slot != null}
+              disabled={slot == null && full}
+              onClick={() => props.onToggle(m.id)}
+            >
+              <i className="key" />
+              {m.name}
+            </button>
+          );
+        })}
+      </fieldset>
+      <div className="chips-foot">
+        <span>
+          強調 {props.focus.length} / {MAX_FOCUS}
+        </span>
+        {props.focus.length > 0 && (
+          <button type="button" className="lnk" onClick={props.onClear}>
+            すべて解除
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** メンバー別の表（シーズン内）。いちばん上の行はメンバー平均。 */
+function MembersTable(
+  props: Readonly<{
+    rows: MemberSeasonRow[];
+    sort: SortState;
+    onSort: (key: SortKey) => void;
+    avg: AvgRow;
+    club: Summary;
+    focus: FocusEntry[];
+    onDetail: (m: Member) => void;
+  }>,
+): JSX.Element {
+  const { sort, avg, club } = props;
+  return (
+    <table className="tbl stats">
+      <thead>
+        <tr>
+          <th>
+            <button type="button" className="th-btn" onClick={() => props.onSort('name')}>
+              名前{sortMark(sort, 'name')}
+            </button>
+          </th>
+          {COLS.map((c) => (
+            <th key={c.key} title={c.title} aria-sort={ariaSortOf(sort, c.key)}>
+              <button type="button" className={`th-btn${sort.key === c.key ? ' on' : ''}`} onClick={() => props.onSort(c.key)}>
+                {c.label}
+                {sortMark(sort, c.key)}
+              </button>
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        <tr className="avg-row">
+          <td>
+            <span className="nmcell legend-avg">
+              <i className="key" />メンバー平均
+            </span>
+          </td>
+          <td>{avg.total == null ? '—' : avg.total.toFixed(1)}</td>
+          <td>{fmtNum(club.avg)}</td>
+          <td>{fmtRate(club.plusRate)}</td>
+          <td>{fmtRate(club.winRate)}</td>
+          <td>{fmtNum(club.avgRank)}</td>
+          <td>{fmtNum(avg.n, 1)}</td>
+          <td>{fmtNum(avg.survival, 1)}</td>
+        </tr>
+        {props.rows.map((r) => (
+          <tr key={r.member.id} className={`clk${r.sum.n === 0 ? ' dim' : ''}`} onClick={() => props.onDetail(r.member)}>
+            <td>
+              <span className={`nmcell${slotClass(slotOf(props.focus, r.member.id))}`}>
+                <i className="key" />
+                {r.member.name}
+              </span>
+            </td>
+            <td className={toneOf(r.sum.total)}>{r.sum.n ? fmtPt(r.sum.total) : '—'}</td>
+            <td>{fmtNum(r.sum.avg)}</td>
+            <td>{fmtRate(r.sum.plusRate)}</td>
+            <td>{fmtRate(r.sum.winRate)}</td>
+            <td>{fmtNum(r.sum.avgRank)}</td>
+            <td>{r.sum.n}</td>
+            <td className={r.survivalStale ? 'stale' : ''} title={r.survivalDate ? `${longDate(r.survivalDate)} の値` : undefined}>
+              {fmtNum(r.survival, 1)}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+/** 指標の表（シーズン推移）。新しいシーズンが左。 */
+function TrendTable(
+  props: Readonly<{ asc: number[]; avg: (number | null)[]; series: Row[]; metric: TrendMetric; onDetail: (id: string) => void }>,
+): JSX.Element {
+  const { asc, metric } = props;
+  const cell = (v: number | null): string => (v == null ? '—' : fmtMetric(metric, v));
+  return (
+    <table className="tbl stats">
+      <thead>
+        <tr>
+          <th>名前</th>
+          {[...asc].reverse().map((no) => (
+            <th key={no}>S{no}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        <tr className="avg-row">
+          <td>
+            <span className="nmcell legend-avg">
+              <i className="key" />メンバー平均
+            </span>
+          </td>
+          {bySeasonDesc(asc, props.avg).map(({ no, v }) => (
+            <td key={no}>{cell(v)}</td>
+          ))}
+        </tr>
+        {props.series.map((s) => (
+          <tr key={s.id} className="clk" onClick={() => props.onDetail(s.id)}>
+            <td>
+              <span className={`nmcell${slotClass(s.slot)}`}>
+                <i className="key" />
+                {s.name}
+              </span>
+            </td>
+            {bySeasonDesc(asc, s.values).map(({ no, v }) => (
+              <td key={no}>{cell(v)}</td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+export function StatsScreen(
+  props: Readonly<{
+    data: AppData;
+    club: ClubState;
+    today: string;
+    seasons: number[];
+    season: number;
+    onSeason: (no: number) => void;
+    focus: FocusEntry[];
+    onToggleFocus: (id: string) => void;
+    onClearFocus: () => void;
+    onBack: () => void;
+  }>,
+): JSX.Element {
+  const { data, season, today } = props;
+  const [mode, setMode] = useState<Mode>('season');
+  const [sort, setSort] = useState<SortState>({ key: 'total', desc: true });
+  const [metric, setMetric] = useState<TrendMetric>('total');
+  const [detail, setDetail] = useState<Member | null>(null);
+
+  const range = seasonRange(season, data.seasons);
+  const days = matchDays(season, data.seasons);
+  const held = days.filter((d) => d <= today).length;
+  const recs = recordsInRange(data.records, range.start, range.end);
+  const club = summarize(recs);
+  const rows = seasonRows(data, season);
+  const avgRow = memberAverage(rows, club);
+  const axis = seasonAxis(data, season);
+
+  // 他クラブ（1 人あたり）との比較。選んだものは端末に覚えておく（一覧にある値だけ）。
+  const [cmp, setCmp] = useState<string>(readCmp);
+  const cd = props.club.data;
+  const cmpLatest = cd ? latestRound(cd, season) : null;
+  const cmpClubs = (cmpLatest?.clubs ?? []).filter((c) => c.name !== OWN_CLUB);
+  const cmpPick = pickCmp(cmp, cmpLatest, cmpClubs);
+  const cmpStored = storableCmp(cmp, cmpClubs);
+  useEffect(() => {
+    if (cmpStored === undefined) return;
+    try {
+      localStorage.setItem(CMP_KEY, cmpStored);
+    } catch {
+      /* noop */
+    }
+  }, [cmpStored]);
+  const cmpLine = cmpLineOf(data, season, cd, cmpPick, Math.max(days.length, cmpLatest?.round ?? 0));
+
+  const sorted = [...rows].sort(compareRows(sort));
+
+  function onSort(key: SortKey): void {
+    setSort((s) => (s.key === key ? { key, desc: !s.desc } : { key, desc: true }));
+  }
+
+  const seasonSeries: Row[] = rows.map((r) => ({
+    id: r.member.id,
+    name: r.member.name,
+    values: seasonCumulative(data, season, r.member.id, today),
+    slot: slotOf(props.focus, r.member.id),
+  }));
+
+  // シーズン推移: 古い順に並べ、記録がある・有効なメンバーを出す。
+  const asc = [...props.seasons].sort((a, b) => a - b);
+  const trendMembers = data.members.filter((m) => !m.archived || data.records.some((r) => r.memberId === m.id));
+  const trendSeries: Row[] = trendMembers.map((m) => ({
+    id: m.id,
+    name: m.name,
+    values: asc.map((no) => trendValue(data, no, m.id, metric)),
+    slot: slotOf(props.focus, m.id),
+  }));
+  const metricInfo = TREND_METRICS.find((t) => t.key === metric)!;
+  const trendAvg = trendAverage(
+    data,
+    asc,
+    trendMembers.map((m) => m.id),
+    metric,
+  );
+
+  return (
+    <div className="pane wide">
+      <Back label="MENU" onClick={props.onBack} />
+      <PaneHead eyebrow="STATS" title="スタッツ" />
+      <fieldset className="seg" aria-label="表示">
+        <button type="button" aria-pressed={mode === 'season'} onClick={() => setMode('season')}>
+          シーズン内
+        </button>
+        <button type="button" aria-pressed={mode === 'trend'} onClick={() => setMode('trend')}>
+          シーズン推移
+        </button>
+      </fieldset>
+
+      {mode === 'season' && (
+        <>
+          <SeasonSelect seasons={props.seasons} value={season} onChange={props.onSeason} overrides={data.seasons} />
+          <div className="hs-grid four">
+            <div className="hs-stat">
+              <span className="statlbl">開催</span>
+              <b className="hs-val">
+                {held}
+                <span className="hs-unit">/ {days.length} 日</span>
+              </b>
+            </div>
+            <div className="hs-stat">
+              <span className="statlbl">クラブ合計</span>
+              <b className={`hs-val${club.total < 0 ? ' loss' : ''}`}>
+                {fmtPt(club.total)}
+                <span className="hs-unit">pt</span>
+              </b>
+            </div>
+            <div className="hs-stat">
+              <span className="statlbl">平均 · 加点率</span>
+              <b className="hs-val">
+                {fmtNum(club.avg)}
+                <span className="hs-unit">{fmtRate(club.plusRate)}</span>
+              </b>
+            </div>
+            <div className="hs-stat">
+              <span className="statlbl">平均順位</span>
+              <b className="hs-val">
+                {fmtNum(club.avgRank)}
+                <span className="hs-unit">位</span>
+              </b>
+            </div>
+          </div>
+
+          <section className="panel">
+            <div className="panel-h cmp-h">
+              <span className="pt">
+                <b>累積ポイント推移</b>
+                <InfoButton title="累積ポイント推移">
+                  <p>シーズンの初日から、その日までのポイントを足し上げた線です。</p>
+                  <InfoList
+                    items={[
+                      ['色の線', '強調したメンバー。下のチップを押すと選べます（最大 8 人）。色はメンバーごとに決まっていて、選び直しても変わりません。'],
+                      ['破線', 'メンバー平均。その日までのクラブの合計 ÷ このシーズンに 1 回以上参加した人数です。'],
+                      ['点々の線', `右上で選んだ他クラブの 1 人あたり。クラブの累計 ÷ 定員 ${CLUB_CAPACITY} 人で出しています（他クラブの人数はポストに無いため）。`],
+                    ]}
+                  />
+                  <p>グラフを押すと、その日の値が出ます。</p>
+                </InfoButton>
+              </span>
+              <label className="club-pick cmp-pick">
+                <i className="key" aria-hidden="true" />
+                <span className="sr">他クラブ（1人あたり）と比べる</span>
+                <select value={cmpPick} onChange={(e) => setCmp(e.target.value)} disabled={cmpClubs.length === 0}>
+                  <option value="">他クラブと比べる</option>
+                  <option value="avg">上位30平均 · 1人あたり</option>
+                  {cmpClubs.map((c) => (
+                    <option key={c.name} value={c.name}>
+                      {c.rank}位 {c.name} · 1人あたり
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <LineChart
+              labels={axis.map(md)}
+              series={cmpLine ? [...onlyFocused(seasonSeries), cmpLine] : onlyFocused(seasonSeries)}
+              average={seasonAverage(data, season, today)}
+              format={(v) => fmtPt(Math.round(v))}
+              zero
+              ariaLabel={`S${season} の累積ポイント推移`}
+            />
+            <MemberChips members={rows.map((r) => r.member)} focus={props.focus} onToggle={props.onToggleFocus} onClear={props.onClearFocus} />
+          </section>
+
+          <section className="panel">
+            <div className="panel-h">
+              <span className="pt">
+                <b>メンバー別</b>
+                <InfoButton title="メンバー別の表">
+                  <InfoList
+                    items={[
+                      ['合計 · 平均', 'そのシーズンのポイントの合計と、1 回あたりの平均（1位 +5 · 2位 +3 · 3位 +2 · 4位 +1 · 5位 ±0 · 6位 −1）。'],
+                      ['加点率', '1〜4位（ポイントが +1 以上）になった割合。'],
+                      ['1位率', '1位になった割合。'],
+                      ['平均順位', '順位の平均。小さいほど上位です。'],
+                      ['参加', 'そのシーズンに記録した回数。'],
+                      ['生存T', '生存ターン数 = 参加ハンド数 ÷ (参加回数 × VPIP)。シーズン末の時点で最新のスタッツから計算します。シーズンより前に入力した値は薄く表示します。'],
+                    ]}
+                  />
+                  <p>見出しを押すと並べ替え、行を押すとそのメンバーの詳細が開きます。いちばん上の行はメンバー平均です。</p>
+                </InfoButton>
+              </span>
+            </div>
+            <ScrollBox className="tbl-scroll fixed">
+              <MembersTable rows={sorted} sort={sort} onSort={onSort} avg={avgRow} club={club} focus={props.focus} onDetail={setDetail} />
+            </ScrollBox>
+          </section>
+
+          <ClubPanel data={data} club={props.club} season={season} today={today} />
+        </>
+      )}
+
+      {mode === 'trend' && (
+        <>
+          <select className="tin" aria-label="指標" value={metric} onChange={(e) => setMetric(e.target.value as TrendMetric)}>
+            {TREND_METRICS.map((t) => (
+              <option key={t.key} value={t.key}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+          <section className="panel">
+            <div className="panel-h">
+              <span className="pt">
+                <b>{metricInfo.label}の推移</b>
+                <InfoButton title="シーズン推移">
+                  <p>上で選んだ指標を、シーズンごとに並べた線です。</p>
+                  <InfoList
+                    items={[
+                      ['色の線', '強調したメンバー（下のチップで選ぶ、最大 8 人）。'],
+                      ['破線', 'メンバー平均（そのシーズンに値のあるメンバーの平均）。'],
+                      ['生存ターン数', '各シーズン中に入力したスタッツの最新値です。入力の無いシーズンは線が途切れます。'],
+                    ]}
+                  />
+                  <p>参加の無いシーズンは線が途切れます。</p>
+                </InfoButton>
+              </span>
+            </div>
+            <LineChart
+              labels={asc.map((no) => `S${no}`)}
+              series={onlyFocused(trendSeries)}
+              average={trendAvg}
+              format={(v) => fmtMetric(metric, v)}
+              zero={metric === 'total' || metric === 'avg'}
+              tickFormat={(v) => fmtTick(metric, v)}
+              markers
+              ariaLabel={`${metricInfo.label}のシーズン推移`}
+              empty={metric === 'survival' ? 'シーズン中に入力したスタッツがありません' : undefined}
+            />
+            <MemberChips members={trendMembers} focus={props.focus} onToggle={props.onToggleFocus} onClear={props.onClearFocus} />
+          </section>
+
+          <section className="panel">
+            <div className="panel-h">
+              <b>{metricInfo.label}（表）</b>
+              <span className="rt">{metricInfo.unit}</span>
+            </div>
+            <ScrollBox className="tbl-scroll fixed">
+              <TrendTable
+                asc={asc}
+                avg={trendAvg}
+                series={trendSeries}
+                metric={metric}
+                onDetail={(id) => setDetail(trendMembers.find((m) => m.id === id) ?? null)}
+              />
+            </ScrollBox>
+          </section>
+
+          <section className="panel">
+            <div className="panel-h">
+              <span className="pt">
+                <b>クラブ合計ポイント</b>
+                <InfoButton title="クラブ合計ポイント">
+                  <p>シーズンごとの、メンバー全員のポイントの合計です（このアプリで記録したぶん）。</p>
+                </InfoButton>
+              </span>
+            </div>
+            <BarChart
+              labels={asc.map((no) => `S${no}`)}
+              values={asc.map((no) => clubTotal(data, no))}
+              format={(v) => fmtPt(Math.round(v))}
+              ariaLabel="クラブ合計ポイントのシーズン推移"
+            />
+          </section>
+        </>
+      )}
+
+      {detail && <MemberDetail member={detail} data={data} onClose={() => setDetail(null)} />}
+    </div>
+  );
+}
+
+/** メンバーの詳細（通算・順位分布・シーズン別）。 */
+function MemberDetail(props: Readonly<{ member: Member; data: AppData; onClose: () => void }>): JSX.Element {
+  const { member, data } = props;
+  const mine = data.records.filter((r) => r.memberId === member.id);
+  const all = summarize(mine);
+  const maxDist = Math.max(1, ...all.dist);
+  const dist = all.dist.map((count, i) => ({ rank: i + 1, count }));
+  const seasons = seasonsOfMember(data, member.id).reverse();
+  const recent = [...mine].sort((a, b) => (a.date < b.date ? 1 : -1)).slice(0, 10);
+
+  return (
+    <Modal eyebrow="MEMBER" title={member.name} size="wide" onClose={props.onClose}>
+      <div className="hs-grid">
+        <div className="hs-stat">
+          <span className="statlbl">通算（アプリ記録）</span>
+          <b className={`hs-val${all.total < 0 ? ' loss' : ''}`}>
+            {fmtPt(all.total)}
+            <span className="hs-unit">pt</span>
+          </b>
+          <span className="hs-sub">{all.n} 戦</span>
+        </div>
+        <div className="hs-stat">
+          <span className="statlbl">平均 · 加点率</span>
+          <b className="hs-val">{fmtNum(all.avg)}</b>
+          <span className="hs-sub">加点率 {fmtRate(all.plusRate)}</span>
+        </div>
+        <div className="hs-stat">
+          <span className="statlbl">1位率 · 平均順位</span>
+          <b className="hs-val">{fmtRate(all.winRate)}</b>
+          <span className="hs-sub">平均 {fmtNum(all.avgRank)} 位</span>
+        </div>
+      </div>
+      <p className="hint">
+        参加回数（通算）: <span className="nw">{matchCountOf(member, data.records)} 回</span>
+      </p>
+
+      <h3>
+        <i className="gem" />順位の分布
+      </h3>
+      <div className="dist">
+        {dist.map(({ rank, count: c }) => (
+          <div key={rank} className="dist-row">
+            <span className={`rkb r${rank}`}>{rank}</span>
+            <span className="dist-bar">
+              <i style={{ width: `${(c / maxDist) * 100}%` }} />
+            </span>
+            <span className="num">
+              {c}
+              <span className="muted"> · {all.n ? `${Math.round((c / all.n) * 100)}%` : '—'}</span>
+            </span>
+          </div>
+        ))}
+      </div>
+
+      <h3>
+        <i className="gem" />シーズン別
+      </h3>
+      {seasons.length === 0 ? (
+        <p>まだ記録がありません。</p>
+      ) : (
+        <div className="tbl-scroll">
+          <table className="tbl stats">
+            <thead>
+              <tr>
+                <th>シーズン</th>
+                <th>合計</th>
+                <th>平均</th>
+                <th>加点率</th>
+                <th>1位率</th>
+                <th>平均順位</th>
+                <th>参加</th>
+                <th>生存T</th>
+              </tr>
+            </thead>
+            <tbody>
+              {seasons.map((no) => {
+                const row = seasonRows(data, no).find((r) => r.member.id === member.id);
+                if (!row) return null;
+                return (
+                  <tr key={no}>
+                    <td>S{no}</td>
+                    <td className={toneOf(row.sum.total)}>{fmtPt(row.sum.total)}</td>
+                    <td>{fmtNum(row.sum.avg)}</td>
+                    <td>{fmtRate(row.sum.plusRate)}</td>
+                    <td>{fmtRate(row.sum.winRate)}</td>
+                    <td>{fmtNum(row.sum.avgRank)}</td>
+                    <td>{row.sum.n}</td>
+                    <td className={row.survivalStale ? 'stale' : ''}>{fmtNum(row.survival, 1)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {recent.length > 0 && (
+        <>
+          <h3>
+            <i className="gem" />最近の記録
+          </h3>
+          <ul className="mini-recs">
+            {recent.map((r) => (
+              <li key={r.id}>
+                <span>{shortDate(r.date)}</span>
+                <span className={`rkb r${r.rank}`}>{r.rank}</span>
+                <span className="num">{fmtPt(pointsOf(r.rank))}pt</span>
+                {r.part && <span className="muted">{r.part}部</span>}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </Modal>
+  );
+}
