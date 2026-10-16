@@ -2,7 +2,7 @@
   "name": "stat-hub",
   "version": "0.1.0",
   "private": true,
-  "description": "Stat Hub — ポーカーチェイスのクラブ「燎」のクラブマッチ戦績を管理するローカル Web アプリ",
+  "description": "Stat Hub — ポーカーチェイスのクラブマッチ戦績を管理するローカル Web アプリ",
   "type": "module",
   "scripts": {
     "start": "npm run build && npm run preview",

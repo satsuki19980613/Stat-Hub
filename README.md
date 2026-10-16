@@ -5,9 +5,7 @@
 [![CodeQL](https://github.com/satsuki19980613/Stat-Hub/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/satsuki19980613/Stat-Hub/actions/workflows/codeql.yml)
 [![Secrets](https://github.com/satsuki19980613/Stat-Hub/actions/workflows/secrets.yml/badge.svg?branch=main)](https://github.com/satsuki19980613/Stat-Hub/actions/workflows/secrets.yml)
 
-ポーカーチェイスのクラブ「燎」のクラブマッチの戦績を記録・集計する Web アプリ。スマートフォンや PC にインストールでき、オフラインでも動作する（PWA）。
-
-機能は [Kagaribi Stat Hub](https://github.com/satsuki19980613/Kagaribi-Stat-Hub) と同じで、デザインを [PrivateMatch](https://github.com/satsuki19980613/privatematch) にそろえた版である。
+ポーカーチェイスのクラブマッチの戦績を、クラブのメンバーごとに記録・集計する Web アプリ。スマートフォンや PC にインストールでき、オフラインでも動作する（PWA）。
 
 **公開サイト**：https://stat-hub.wsk641.workers.dev/
 
@@ -15,9 +13,9 @@
 
 - **記録** — 日付を選び、参加メンバーの順位（1〜6 位）をタップして保存する。得点は公式の個人ポイント（1 位 +5 〜 6 位 −1）で自動的に決まる。
 - **メンバー情報登録** — 人数の上限は無い（代走も登録できる）。参加回数と基本スタッツ（優勝回数・VPIP・参加ハンド数）を記録する。
-- **スタッツビュー** — シーズン内・シーズン推移のグラフと表（合計 pt・平均 pt・加点率・1 位率・平均順位・生存ターン数）と、上位 30 クラブとの比較。
+- **スタッツビュー** — シーズン内・シーズン推移のグラフと表（合計 pt・平均 pt・加点率・1 位率・平均順位・生存ターン数）と、上位 30 クラブとの比較（自分のクラブは順位表から選ぶ）。
 - **シーズン設定** — シーズンは日付から自動的に判定する。急な短縮・延長・休催は手動で修正できる。
-- **バックアップ** — 変更のたびに端末内へ自動で保存し、任意の時点に復元できる。PC ではファイルへの自動保存にも対応する。Kagaribi Stat Hub のバックアップもそのまま読み込める。
+- **バックアップ** — 変更のたびに端末内へ自動で保存し、任意の時点に復元できる。PC ではファイルへの自動保存にも対応する。
 - **表示テーマ** — ライト／ダークは端末の設定に従い、右上のボタンで切り替えられる。
 
 使い方と指標の定義の詳細は [docs/GUIDE.md](docs/GUIDE.md) を参照。
@@ -43,7 +41,7 @@
 | シーズン設定 | **端末のブラウザ内のみ** | 不可 | 不可 |
 | 自動バックアップの履歴 | **端末のブラウザ内のみ**（直近 30 件と、それ以前は 1 日 1 件を 60 日分） | 不可 | 不可 |
 | 書き出したバックアップ（JSON。メンバーの名前を含む） | 利用者が選んだファイル | 不可 | ファイルを渡した相手 |
-| 表示設定（強調するメンバー・比較するクラブ・表示テーマ） | **端末のブラウザ内のみ**（localStorage） | 不可 | 不可 |
+| 表示設定（強調するメンバー・自分のクラブ・比較するクラブ・表示テーマ） | **端末のブラウザ内のみ**（localStorage） | 不可 | 不可 |
 | クラブ順位（上位 30） | このリポジトリの [public/data/clubs.json](public/data/clubs.json) | 可 | 可（X で公開されている集計の転記） |
 
 外部サービスに送信される情報：
@@ -148,5 +146,4 @@ src/
 
 - デプロイとスマートフォンへのインストール（Cloudflare。`main` への反映で自動配信）：[DEPLOY.md](DEPLOY.md)
 - クラブ順位の取り込み：[docs/GUIDE.md](docs/GUIDE.md#クラブ順位上位30)
-- 機能：[Kagaribi Stat Hub](https://github.com/satsuki19980613/Kagaribi-Stat-Hub) と同じ（バックアップとクラブ順位のファイルは同じ形式）
 - デザイン：[PrivateMatch](https://github.com/satsuki19980613/privatematch) と同じ（直角・ガラスの面・パステルのぼかし・Inter Tight。色は YOU の青 #336B87 と相手のオレンジ #FE7A47。トークンは [src/style.css](src/style.css) の `:root`）

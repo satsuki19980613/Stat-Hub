@@ -15,6 +15,11 @@ describe('バックアップ', () => {
     expect(parseBackup(json)).toEqual(data);
   });
 
+  it('同じ形式の古い名前で書き出されたファイルも読める', () => {
+    const json = { ...JSON.parse(JSON.stringify(toBackup(data))), app: 'kagaribi-stat-hub' };
+    expect(parseBackup(json)).toEqual(data);
+  });
+
   it('別アプリのファイル・壊れた記録・重複は弾く', () => {
     expect(() => parseBackup({ app: 'x' })).toThrow();
     const bad = JSON.parse(JSON.stringify(toBackup(data)));

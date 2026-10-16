@@ -7,8 +7,10 @@ import { isIsoDate } from './date';
 import type { AppData, MatchRecord, Member, SeasonOverride, StatSnapshot } from './model';
 import { isRank } from './points';
 
-/** バックアップの形式の名前。Kagaribi Stat Hub と同じ形式なので、互いのバックアップをそのまま読み込める。 */
-export const BACKUP_APP = 'kagaribi-stat-hub';
+/** バックアップの形式の名前。 */
+export const BACKUP_APP = 'stat-hub';
+/** 読み込みだけ受け付ける、中身が同じ形式の古い名前。 */
+const LEGACY_BACKUP_APPS: readonly string[] = ['kagaribi-stat-hub'];
 export const BACKUP_VERSION = 1;
 
 export interface BackupFile extends AppData {
@@ -61,7 +63,7 @@ function all<T>(list: unknown, parse: (v: unknown) => T | null, label: string): 
 
 /** 読み込んだ JSON を検証して AppData にする。壊れていれば理由つきで throw。 */
 export function parseBackup(json: unknown): AppData {
-  if (!isObj(json) || json.app !== BACKUP_APP) throw new Error('Stat Hub のバックアップではありません。');
+  if (!isObj(json) || (json.app !== BACKUP_APP && !LEGACY_BACKUP_APPS.includes(String(json.app)))) throw new Error('Stat Hub のバックアップではありません。');
   if (!isNum(json.version) || json.version > BACKUP_VERSION) throw new Error('新しい版のアプリで書き出されたファイルです。アプリを更新してください。');
   const data: AppData = {
     members: all(json.members, member, 'メンバー'),

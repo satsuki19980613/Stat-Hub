@@ -3,6 +3,7 @@ import {
   checkRound,
   clubSeries,
   emptyClubData,
+  clubNames,
   ownSeries,
   perMemberSeries,
   parseClubData,
@@ -90,7 +91,7 @@ const r2: ClubRound = {
   clubs: [
     { rank: 1, prev: 2, name: 'B', total: 80, gain: 50 },
     { rank: 2, prev: 1, name: 'A', total: 60, gain: 20 },
-    { rank: 3, prev: null, name: '燎', total: 55, gain: 55 },
+    { rank: 3, prev: null, name: 'C', total: 55, gain: 55 },
   ],
 };
 
@@ -158,12 +159,20 @@ describe('データの扱い', () => {
     expect(() => parseClubData({ ...d, rounds: [{ season: 31, round: 1, clubs: [{ rank: '1' }] }] })).toThrow();
   });
 
-  it('クラブの線・上位平均・燎（公式があれば公式、無ければアプリの合計）', () => {
+  it('クラブの線・上位平均・自分のクラブ（選んで順位にあれば公式、無ければアプリの合計）', () => {
     expect(clubSeries(d, 31, 'A', 3)).toEqual([40, 60, null]);
     expect(topAverage(d, 31, 3)).toEqual([35, 65, null]);
-    expect(ownSeries(d, 31, [12, 30, 45])).toEqual({ values: [12, 55, 45], official: [false, true, false] });
+    expect(ownSeries(d, 31, 'C', [12, 30, 45])).toEqual({ values: [12, 55, 45], official: [false, true, false] });
+    // 自分のクラブを選んでいなければ、すべてアプリの合計
+    expect(ownSeries(d, 31, '', [12, 30, 45])).toEqual({ values: [12, 30, 45], official: [false, false, false] });
     // 1 人あたり = 累計 ÷ 定員 20
     expect(perMemberSeries(d, 31, 'avg', 3)).toEqual([1.75, 3.25, null]);
     expect(perMemberSeries(d, 31, 'B', 2)).toEqual([1.5, 4]);
+  });
+
+  it('シーズンのクラブ名は最新の節の順位順、いなくなったクラブはその後ろ', () => {
+    const d3 = upsertRound(d, { season: 31, round: 3, clubs: [{ rank: 1, prev: 1, name: 'B', total: 90, gain: 10 }, { rank: 2, prev: 3, name: 'C', total: 70, gain: 15 }] }, 't');
+    expect(clubNames(d3, 31)).toEqual(['B', 'C', 'A']);
+    expect(clubNames(d3, 99)).toEqual([]);
   });
 });

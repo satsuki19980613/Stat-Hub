@@ -1,7 +1,7 @@
 # デプロイ手順（スマホにインストールできるようにする）
 
 このアプリは **端末ローカル完結**（記録はすべてブラウザ内に保存）なので、ビルドした静的ファイルを置くだけで動きます。
-[Kagaribi Stat Hub](https://github.com/satsuki19980613/Kagaribi-Stat-Hub) と同じく、**リポジトリは非公開のまま** **Cloudflare**（無料）で配ります。
+**リポジトリは非公開のまま** **Cloudflare**（無料）で配ります。
 初回だけ下記の操作が必要です（数分）。
 
 > GitHub Pages は無料プランだと非公開リポジトリから配信できないため使いません。
@@ -30,7 +30,7 @@ Cloudflare は既定のブランチ（本番）を配ります。GitHub のリ�
 
    Node は `.node-version`（= 22）で固定済み。
 4. **Deploy** → 1〜2 分でビルド＆デプロイされ、`https://stat-hub.<サブドメイン>.workers.dev` が発行されます
-   （Kagaribi Stat Hub と同じアカウントなら https://stat-hub.wsk641.workers.dev ）。
+   （公開中のサイトは https://stat-hub.wsk641.workers.dev ）。
    別の URL になったときは、GitHub の **Settings → Secrets and variables → Actions → Variables** に `SITE_URL` として登録してください（Live の検証先になります）。
 
 以降は **`main` に入るたび自動で再デプロイ** されます。

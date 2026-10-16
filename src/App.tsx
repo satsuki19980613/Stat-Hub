@@ -26,7 +26,7 @@ import { StatsScreen } from './screens/StatsScreen';
 type Screen = 'menu' | 'record' | 'history' | 'members' | 'stats' | 'seasons';
 type Tab = 'record' | 'members' | 'stats';
 
-const FOCUS_KEY = 'ksh-focus';
+const FOCUS_KEY = 'sh-focus';
 /** 右上のボタンで選んだ表示テーマ（light / dark）。public/theme.js が起動時に読む。 */
 const THEME_KEY = 'sh-theme';
 /** アドレスバーの色（theme-color）。地の色（src/style.css の --bg）と同じ。 */

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { OWN_CLUB, checkRound, parseClubData, roundsOf, upsertRound, emptyClubData } from '../domain/clubRanking';
+import { checkRound, parseClubData, roundsOf, upsertRound, emptyClubData } from '../domain/clubRanking';
+import { DEMO_OWN_CLUB } from './ownClub';
 import { buildClubSample } from './clubSample';
 
 describe('デモのクラブ順位', () => {
@@ -18,9 +19,9 @@ describe('デモのクラブ順位', () => {
     }
   });
 
-  it('3 シーズンぶんあり、燎は順位に入る節と入らない節がある', () => {
+  it('3 シーズンぶんあり、自分のクラブは順位に入る節と入らない節がある', () => {
     expect([31, 32, 33].map((s) => roundsOf(d, s).length).every((n) => n > 0)).toBe(true);
-    const inTop = d.rounds.map((r) => r.clubs.some((c) => c.name === OWN_CLUB));
+    const inTop = d.rounds.map((r) => r.clubs.some((c) => c.name === DEMO_OWN_CLUB));
     expect(inTop.some(Boolean)).toBe(true);
   });
 });
