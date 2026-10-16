@@ -66,13 +66,14 @@ function storablePick(pick: string, picked: ClubEntry | null): string | undefine
   return picked?.name;
 }
 
-/** 順位表の 1 行。燎の行は押せない。選んだクラブの行をもう一度押すと外れる。 */
+/** 順位表の 1 行。燎の行も他のクラブと同じ見た目（強調も貼りつきもしない）で、押せないだけ。選んだクラブの行をもう一度押すと外れる。 */
 function ClubRow(props: Readonly<{ c: ClubEntry; round: number; isPick: boolean; onPick: (name: string) => void }>): JSX.Element {
   const { c, round, isPick } = props;
   const isOwn = c.name === OWN_CLUB;
-  const cls = isOwn ? 'own-row' : 'clk';
+  let cls: string | undefined;
+  if (!isOwn) cls = isPick ? 'clk pick-row' : 'clk';
   return (
-    <tr className={isPick ? `${cls} pick-row` : cls} onClick={isOwn ? undefined : () => props.onPick(isPick ? '' : c.name)}>
+    <tr className={cls} onClick={isOwn ? undefined : () => props.onPick(isPick ? '' : c.name)}>
       <td>
         {c.rank}
         <span className="mv">{moveMark(c, round)}</span>
