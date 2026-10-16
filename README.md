@@ -9,7 +9,7 @@
 
 機能は [Kagaribi Stat Hub](https://github.com/satsuki19980613/Kagaribi-Stat-Hub) と同じで、デザインを [PrivateMatch](https://github.com/satsuki19980613/privatematch) にそろえた版である。
 
-**公開サイト**：https://stat-hub.wsk641.workers.dev/ （Cloudflare への取り込み後に公開。[DEPLOY.md](DEPLOY.md)）
+**公開サイト**：https://stat-hub.wsk641.workers.dev/
 
 ## 機能
 
@@ -96,7 +96,7 @@
 | [Live](https://github.com/satsuki19980613/Stat-Hub/actions/workflows/live.yml) | 本番サイトの疎通、セキュリティヘッダーが [public/_headers](public/_headers) どおりであること、クラブ順位を取得できること、Mozilla HTTP Observatory の評価が A+ であること | 毎週・配信設定の変更時 |
 | [CodeQL](https://github.com/satsuki19980613/Stat-Hub/actions/workflows/codeql.yml) | GitHub CodeQL による静的解析 | コード変更時・毎週 |
 | [Secrets](https://github.com/satsuki19980613/Stat-Hub/actions/workflows/secrets.yml) | gitleaks による秘密情報（API キー・トークン・パスワード・秘密鍵など）の検査。全ブランチの全履歴が対象 | コード変更時・毎週 |
-| [Mozilla HTTP Observatory](https://developer.mozilla.org/en-US/observatory/analyze?host=stat-hub.wsk641.workers.dev) | 公開サイトのセキュリティヘッダー。公開前のため未測定（[public/_headers](public/_headers) は A+ の Kagaribi Stat Hub と同じ）。Live が毎週測定し、A+ 未満なら失敗とする | リンク先で随時再測定できる |
+| [Mozilla HTTP Observatory](https://developer.mozilla.org/en-US/observatory/analyze?host=stat-hub.wsk641.workers.dev) | 公開サイトのセキュリティヘッダー。**A+**（125 点、12 項目すべて合格。2026-10-16 測定）。Live が毎週測定し、A+ 未満なら失敗とする | リンク先で随時再測定できる |
 
 ### 脆弱性の報告
 
