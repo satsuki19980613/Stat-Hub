@@ -57,10 +57,10 @@ export function Menu(props: Readonly<{
         </div>
       )}
       <h1 className="wordmark">Stat Hub</h1>
-      <p className="tagline">クラブ「燎」のクラブマッチ戦績</p>
+      <p className="tagline">ポーカーチェイスのクラブマッチ戦績</p>
       <div className="hero panel">
         <div className="hero-top">
-          <span className="eyebrow">CLUB 燎 · CLUB MATCH</span>
+          <span className="eyebrow">CLUB MATCH</span>
           <span className="season-tag num">S{season}</span>
         </div>
         <div className="hero-sub">
@@ -101,7 +101,7 @@ export function Menu(props: Readonly<{
         <span className="pt">
           <span className="eyebrow">MENU</span>
           <InfoButton title="このアプリについて">
-            <p>クラブ「燎」のクラブマッチの戦績を記録・集計するアプリです。</p>
+            <p>ポーカーチェイスのクラブマッチの戦績を、クラブのメンバーごとに記録・集計するアプリです。</p>
             <InfoList
               items={[
                 ['記録', '開催日にメンバーの順位を入れます。記録した人が参加、記録しなければ不参加です。'],

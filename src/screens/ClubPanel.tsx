@@ -3,11 +3,13 @@ import { LineChart, type LineSeries } from '../components/charts';
 import { ScrollBox } from '../components/ScrollBox';
 import { InfoButton, InfoList } from '../components/ui';
 import type { ClubState } from '../data/clubData';
-import { OWN_CLUB, clubSeries, latestRound, ownSeries, topAverage, type ClubEntry, type ClubRound } from '../domain/clubRanking';
+import { clubNames, clubSeries, latestRound, ownSeries, topAverage, type ClubEntry, type ClubRound } from '../domain/clubRanking';
 import type { AppData } from '../domain/model';
 import { clubAppTotals, clubAxisLabels, clubAxisLength } from '../domain/views';
 
-const PICK_KEY = 'ksh-club-pick';
+const PICK_KEY = 'sh-club-pick';
+/** 自分のクラブを選んでいないときの線の名前。 */
+const OWN_LABEL = '自クラブ';
 
 function readPick(): string {
   try {
@@ -47,8 +49,9 @@ function moveMark(c: ClubEntry, round: number): string {
   return '';
 }
 
-/** 凡例に添える燎の順位。 */
-function ownRankText(latest: ClubRound | null, ownNow: ClubEntry | null): string {
+/** 凡例に添える自分のクラブの順位（入力していなければ、記録の合計であること）。 */
+function ownRankText(ownName: string, latest: ClubRound | null, ownNow: ClubEntry | null): string {
+  if (ownName === '') return '（記録の合計）';
   if (!latest) return '';
   return ownNow ? ` ${ownNow.rank}位` : ' 圏外';
 }
@@ -66,13 +69,13 @@ function storablePick(pick: string, picked: ClubEntry | null): string | undefine
   return picked?.name;
 }
 
-/** 順位表の 1 行。燎の行は押せない。選んだクラブの行をもう一度押すと外れる。 */
-function ClubRow(props: Readonly<{ c: ClubEntry; round: number; isPick: boolean; onPick: (name: string) => void }>): JSX.Element {
-  const { c, round, isPick } = props;
-  const isOwn = c.name === OWN_CLUB;
-  const cls = isOwn ? 'own-row' : 'clk';
+/** 順位表の 1 行。自分のクラブの行も他のクラブと同じ見た目（強調も貼りつきもしない）で、押せないだけ。選んだクラブの行をもう一度押すと外れる。 */
+function ClubRow(props: Readonly<{ c: ClubEntry; round: number; isOwn: boolean; isPick: boolean; onPick: (name: string) => void }>): JSX.Element {
+  const { c, round, isOwn, isPick } = props;
+  let cls: string | undefined;
+  if (!isOwn) cls = isPick ? 'clk pick-row' : 'clk';
   return (
-    <tr className={isPick ? `${cls} pick-row` : cls} onClick={isOwn ? undefined : () => props.onPick(isPick ? '' : c.name)}>
+    <tr className={cls} onClick={isOwn ? undefined : () => props.onPick(isPick ? '' : c.name)}>
       <td>
         {c.rank}
         <span className="mv">{moveMark(c, round)}</span>
@@ -88,10 +91,15 @@ function ClubRow(props: Readonly<{ c: ClubEntry; round: number; isPick: boolean;
 
 /**
  * クラブ順位（上位 30）との比較。メンバーのグラフとは別のパネルにして、単位（クラブの累計）を混ぜない。
- * 線は 3 本まで: 燎（オレンジ）・選んだクラブ（青）・上位 30 平均（点線）。比べるクラブは右上のプルダウンで選ぶ。
+ * 線は 3 本まで: 自分のクラブ（オレンジ）・選んだクラブ（青）・上位 30 平均（点線）。比べるクラブは右上のプルダウンで選ぶ。
+ * 自分のクラブは下の欄に名前を入れる（順位表にあるクラブは候補に出る）。順位表に同じ名前があればその節は公式の値、
+ * 無い節と、入力していないときは、このアプリで記録した合計で線を引く。
  */
-export function ClubPanel(props: Readonly<{ data: AppData; club: ClubState; season: number; today: string }>): JSX.Element {
-  const { data, club, season, today } = props;
+export function ClubPanel(
+  props: Readonly<{ data: AppData; club: ClubState; season: number; today: string; ownClub: string; onOwnClub: (name: string) => void }>,
+): JSX.Element {
+  const { data, club, season, today, ownClub } = props;
+  const ownName = ownClub.trim();
   const [pick, setPick] = useState(readPick);
 
   const cd = club.data;
@@ -99,10 +107,13 @@ export function ClubPanel(props: Readonly<{ data: AppData; club: ClubState; seas
   const n = clubAxisLength(data, season, today, latest?.round ?? 0);
   const labels = clubAxisLabels(data, season, n);
   const app = clubAppTotals(data, season, n, today);
-  const own = cd ? ownSeries(cd, season, app) : { values: app, official: app.map(() => false) };
-  const others = (latest?.clubs ?? []).filter((c) => c.name !== OWN_CLUB);
+  const own = cd ? ownSeries(cd, season, ownName, app) : { values: app, official: app.map(() => false) };
+  const others = (latest?.clubs ?? []).filter((c) => c.name !== ownName);
   const picked = others.find((c) => c.name === pick) ?? null;
-  const ownNow = latest?.clubs.find((c) => c.name === OWN_CLUB) ?? null;
+  const ownNow = ownName === '' ? null : (latest?.clubs.find((c) => c.name === ownName) ?? null);
+  // 自分のクラブの入力の候補：このシーズンの順位表に載ったクラブ。
+  const names = cd ? clubNames(cd, season) : [];
+  const ownLabel = ownName || OWN_LABEL;
   // 一覧にあるクラブ名だけを保存する（まだ読み込み前などで一覧に無いときは、保存済みの値をそのまま残す）。
   const stored = storablePick(pick, picked);
   useEffect(() => {
@@ -114,7 +125,7 @@ export function ClubPanel(props: Readonly<{ data: AppData; club: ClubState; seas
     }
   }, [stored]);
 
-  const series: LineSeries[] = [{ id: 'own', name: OWN_CLUB, values: own.values, slot: 0, tone: 'own' }];
+  const series: LineSeries[] = [{ id: 'own', name: ownLabel, values: own.values, slot: 0, tone: 'own' }];
   if (picked && cd) series.push({ id: 'pick', name: picked.name, values: clubSeries(cd, season, picked.name, n), slot: 0 });
   const avg = cd && latest ? topAverage(cd, season, n) : undefined;
 
@@ -127,7 +138,7 @@ export function ClubPanel(props: Readonly<{ data: AppData; club: ClubState; seas
             <p>クラブマッチの上位 30 クラブの累計ポイントです。X の @c0pmvd さんが毎節ポストしている集計を取り込んでいます。</p>
             <InfoList
               items={[
-                [OWN_CLUB, '上位 30 に入った節は公式の値、圏外の節はこのアプリで記録したポイントの合計です。'],
+                ['自クラブ', '下の「自分のクラブ」に入れたクラブ（順位表にあるクラブは入力中に候補が出ます）。上位 30 に入った節は公式の値、圏外の節はこのアプリで記録したポイントの合計です。入れるまでは、すべて記録の合計で線を引きます。'],
                 ['選んだクラブ', '右上のプルダウンか、表の行を押して選びます。もう一度押すと外れます。'],
                 ['破線', '上位 30 クラブの累計の平均。'],
                 ['表', '最新の節の順位。↑↓ は前の節からの上がり下がり、new は圏外から入ったクラブ。「—」は圏外から入ったため、その節の得点がポストに無いものです。'],
@@ -155,14 +166,14 @@ export function ClubPanel(props: Readonly<{ data: AppData; club: ClubState; seas
         averageLabel={{ name: '上位30平均', short: '上位平均' }}
         format={fmtTotal}
         zero
-        ariaLabel={`S${season} のクラブ累計ポイント（燎と上位30クラブ）`}
+        ariaLabel={`S${season} のクラブ累計ポイント（自クラブと上位30クラブ）`}
         empty="まだ記録がありません"
       />
       <div className="club-legend">
         <span className="own">
           <i className="key" />
-          {OWN_CLUB}
-          <span className="muted">{ownRankText(latest, ownNow)}</span>
+          {ownLabel}
+          <span className="muted">{ownRankText(ownName, latest, ownNow)}</span>
         </span>
         {picked && (
           <span className="s1">
@@ -176,6 +187,26 @@ export function ClubPanel(props: Readonly<{ data: AppData; club: ClubState; seas
           </span>
         )}
       </div>
+      <label className="own-pick">
+        <span>自分のクラブ</span>
+        <input
+          className="tin txt"
+          type="text"
+          list="sh-own-clubs"
+          value={ownClub}
+          onChange={(e) => props.onOwnClub(e.target.value)}
+          onBlur={(e) => props.onOwnClub(e.target.value.trim())}
+          placeholder="クラブ名を入力"
+          maxLength={40}
+          autoComplete="off"
+          enterKeyHint="done"
+        />
+        <datalist id="sh-own-clubs">
+          {names.map((name) => (
+            <option key={name} value={name} />
+          ))}
+        </datalist>
+      </label>
 
       {latest && (
         <ScrollBox className="tbl-scroll fixed club-tbl">
@@ -190,7 +221,7 @@ export function ClubPanel(props: Readonly<{ data: AppData; club: ClubState; seas
             </thead>
             <tbody>
               {latest.clubs.map((c) => (
-                <ClubRow key={c.name} c={c} round={latest.round} isPick={c.name === picked?.name} onPick={setPick} />
+                <ClubRow key={c.name} c={c} round={latest.round} isOwn={c.name === ownName} isPick={c.name === picked?.name} onPick={setPick} />
               ))}
             </tbody>
           </table>

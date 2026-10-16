@@ -35,7 +35,7 @@ export default defineConfig({
         id: './',
         name: 'Stat Hub',
         short_name: 'Stat Hub',
-        description: 'クラブ「燎」のクラブマッチ戦績を記録・集計（端末内で完結）',
+        description: 'ポーカーチェイスのクラブマッチ戦績を記録・集計（端末内で完結）',
         lang: 'ja',
         theme_color: '#E9EAED',
         background_color: '#E9EAED',

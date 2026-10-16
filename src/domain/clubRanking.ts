@@ -8,10 +8,8 @@
  * ここは純関数だけ（取り込みスクリプト scripts/club-ranking.ts からも使う）。
  */
 
-export const CLUB_FORMAT = 'kagaribi-club-ranking'; // Kagaribi Stat Hub と同じ形式（data/clubs.json をそのまま使える）
+export const CLUB_FORMAT = 'stat-hub-club-ranking';
 export const CLUB_VERSION = 1;
-/** 自分のクラブの名前（順位に入っていれば公式の値を使う）。 */
-export const OWN_CLUB = '燎';
 /** クラブの定員。他クラブの人数はポストに無いので、1 人あたりは累計 ÷ 定員で見る。 */
 export const CLUB_CAPACITY = 20;
 
@@ -238,6 +236,15 @@ export function roundsOf(data: ClubData, season: number): ClubRound[] {
   return data.rounds.filter((r) => r.season === season).sort((a, b) => a.round - b.round);
 }
 
+/** そのシーズンの順位表に一度でも載ったクラブの名前（最新の節の順位順、そのあとに最新の節にいないクラブを名前順）。 */
+export function clubNames(data: ClubData, season: number): string[] {
+  const rs = roundsOf(data, season);
+  const latest = rs.at(-1)?.clubs.map((c) => c.name) ?? [];
+  const rest = new Set(rs.flatMap((r) => r.clubs.map((c) => c.name)));
+  for (const n of latest) rest.delete(n);
+  return [...latest, ...[...rest].sort((a, b) => a.localeCompare(b, 'ja'))];
+}
+
 /** その節までの最新の順位表（グラフで選ぶクラブの並び）。 */
 export function latestRound(data: ClubData, season: number): ClubRound | null {
   return roundsOf(data, season).at(-1) ?? null;
@@ -269,11 +276,16 @@ export function perMemberSeries(data: ClubData, season: number, pick: string, n:
 }
 
 /**
- * 自分のクラブの累計。順位に入っている節は公式の値、入っていない節はアプリの記録の合計（appTotals）を使う。
- * official は公式の値を使った節の印。
+ * 自分のクラブの累計。ownName（利用者が選んだ自分のクラブ。'' なら選んでいない）が順位に入っている節は公式の値、
+ * 入っていない節と、選んでいないときはアプリの記録の合計（appTotals）を使う。official は公式の値を使った節の印。
  */
-export function ownSeries(data: ClubData, season: number, appTotals: readonly (number | null)[]): { values: (number | null)[]; official: boolean[] } {
-  const off = clubSeries(data, season, OWN_CLUB, appTotals.length);
+export function ownSeries(
+  data: ClubData,
+  season: number,
+  ownName: string,
+  appTotals: readonly (number | null)[],
+): { values: (number | null)[]; official: boolean[] } {
+  const off = ownName === '' ? appTotals.map(() => null) : clubSeries(data, season, ownName, appTotals.length);
   return {
     values: appTotals.map((v, i) => off[i] ?? v),
     official: off.map((v) => v != null),

@@ -61,7 +61,7 @@ async function checkClubs() {
   if (ok) {
     try {
       const data = await res.json();
-      ok = data?.format === 'kagaribi-club-ranking' && Array.isArray(data.rounds);
+      ok = data?.format === 'stat-hub-club-ranking' && Array.isArray(data.rounds);
       detail = ok ? `${data.rounds.length} 節（更新 ${data.updatedAt || '不明'}）` : '形が違う';
     } catch {
       ok = false;

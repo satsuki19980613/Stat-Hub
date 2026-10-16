@@ -1,12 +1,13 @@
 /**
- * デモ用のクラブ順位（上位 30）。架空のクラブ 30 + 燎（サンプルの記録の合計）を毎節競わせ、上位 30 を出す。
- * 燎は順位に入った節だけ載る（圏外の節はアプリの記録の合計で線がつながる）。
+ * デモ用のクラブ順位（上位 30）。架空のクラブ 30 + 自分のクラブ（DEMO_OWN_CLUB。サンプルの記録の合計）を毎節競わせ、上位 30 を出す。
+ * 自分のクラブは順位に入った節だけ載る（圏外の節はアプリの記録の合計で線がつながる）。
  */
 
 import { DEMO_TODAY } from '../clock';
-import { CLUB_FORMAT, CLUB_VERSION, OWN_CLUB, type ClubData, type ClubEntry, type ClubRound } from '../domain/clubRanking';
+import { CLUB_FORMAT, CLUB_VERSION, type ClubData, type ClubEntry, type ClubRound } from '../domain/clubRanking';
 import { matchDays } from '../domain/season';
 import { clubAppTotals } from '../domain/views';
+import { DEMO_OWN_CLUB } from './ownClub';
 import { buildSampleData, rng } from './sample';
 
 const NAMES = [
@@ -32,7 +33,7 @@ export function buildClubSample(): ClubData {
         const gain = Math.max(-4, Math.min(50, Math.round(mean + (r() - 0.5) * 22)));
         totals.set(n, (totals.get(n) ?? 0) + gain);
       });
-      totals.set(OWN_CLUB, own[i] ?? 0);
+      totals.set(DEMO_OWN_CLUB, own[i] ?? 0);
       const ranked = [...totals.entries()].sort((a, b) => b[1] - a[1]).slice(0, 30);
       const clubs: ClubEntry[] = ranked.map(([name, total], j) => {
         return { rank: j + 1, prev: prevRank.get(name) ?? null, name, total, gain: total - (last.get(name) ?? 0) };
