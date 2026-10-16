@@ -1,7 +1,7 @@
 {
  "format": "stat-hub-club-ranking",
  "version": 1,
- "updatedAt": "2026-10-16T04:50:37.872Z",
+ "updatedAt": "2026-10-16T04:52:33.696Z",
  "rounds": [
   {"season": 31, "round": 1, "clubs": [
     {"rank":1,"prev":null,"name":"【γ】","total":56,"gain":56},
@@ -188,6 +188,9 @@
     {"rank":22,"prev":20,"name":"SANG-FROID","total":205,"gain":30},
     {"rank":23,"prev":24,"name":"Famous Day","total":202,"gain":31},
     {"rank":24,"prev":17,"name":"ポカたまですこ","total":201,"gain":21},
+    {"rank":25,"prev":null,"name":"☆One Top☆","total":200,"gain":null},
+    {"rank":26,"prev":20,"name":"最終兵器りんごちゃん","total":199,"gain":24},
+    {"rank":27,"prev":null,"name":"青雪隊","total":193,"gain":null},
     {"rank":28,"prev":29,"name":"リバーでぴえん","total":191,"gain":34},
     {"rank":29,"prev":27,"name":"COUNTERS","total":190,"gain":28},
     {"rank":30,"prev":26,"name":"あるてぃめっと！","total":189,"gain":22}
