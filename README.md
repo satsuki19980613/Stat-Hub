@@ -4,6 +4,7 @@
 [![Live](https://github.com/satsuki19980613/Stat-Hub/actions/workflows/live.yml/badge.svg?branch=main)](https://github.com/satsuki19980613/Stat-Hub/actions/workflows/live.yml)
 [![CodeQL](https://github.com/satsuki19980613/Stat-Hub/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/satsuki19980613/Stat-Hub/actions/workflows/codeql.yml)
 [![Secrets](https://github.com/satsuki19980613/Stat-Hub/actions/workflows/secrets.yml/badge.svg?branch=main)](https://github.com/satsuki19980613/Stat-Hub/actions/workflows/secrets.yml)
+[![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=satsuki19980613_Stat-Hub&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=satsuki19980613_Stat-Hub)
 
 ポーカーチェイスのクラブマッチの戦績を、クラブのメンバーごとに記録・集計する Web アプリ。スマートフォンや PC にインストールでき、オフラインでも動作する（PWA）。
 
@@ -41,7 +42,8 @@
 | シーズン設定 | **端末のブラウザ内のみ** | 不可 | 不可 |
 | 自動バックアップの履歴 | **端末のブラウザ内のみ**（直近 30 件と、それ以前は 1 日 1 件を 60 日分） | 不可 | 不可 |
 | 書き出したバックアップ（JSON。メンバーの名前を含む） | 利用者が選んだファイル | 不可 | ファイルを渡した相手 |
-| 表示設定（強調するメンバー・自分のクラブ・比較するクラブ・表示テーマ） | **端末のブラウザ内のみ**（localStorage） | 不可 | 不可 |
+| 自分のクラブの名前 | **端末のブラウザ内のみ**（IndexedDB） | 不可 | 不可 |
+| 表示設定（強調するメンバー・比較するクラブ・表示テーマ） | **端末のブラウザ内のみ**（localStorage） | 不可 | 不可 |
 | クラブ順位（上位 30） | このリポジトリの [public/data/clubs.json](public/data/clubs.json) | 可 | 可（X で公開されている集計の転記） |
 
 外部サービスに送信される情報：
@@ -94,6 +96,7 @@
 | [Live](https://github.com/satsuki19980613/Stat-Hub/actions/workflows/live.yml) | 本番サイトの疎通、セキュリティヘッダーが [public/_headers](public/_headers) どおりであること、クラブ順位を取得できること、Mozilla HTTP Observatory の評価が A+ であること | 毎週・配信設定の変更時 |
 | [CodeQL](https://github.com/satsuki19980613/Stat-Hub/actions/workflows/codeql.yml) | GitHub CodeQL による静的解析 | コード変更時・毎週 |
 | [Secrets](https://github.com/satsuki19980613/Stat-Hub/actions/workflows/secrets.yml) | gitleaks による秘密情報（API キー・トークン・パスワード・秘密鍵など）の検査。全ブランチの全履歴が対象 | コード変更時・毎週 |
+| [SonarCloud](https://sonarcloud.io/summary/overall?id=satsuki19980613_Stat-Hub) | 静的解析（セキュリティ・信頼性・保守性・重複）と依存パッケージの脆弱性・ライセンスの検査。Quality Gate に通ることを上部のバッジで示す | コード変更時 |
 | [Mozilla HTTP Observatory](https://developer.mozilla.org/en-US/observatory/analyze?host=stat-hub.wsk641.workers.dev) | 公開サイトのセキュリティヘッダー。**A+**（125 点、12 項目すべて合格。2026-10-16 測定）。Live が毎週測定し、A+ 未満なら失敗とする | リンク先で随時再測定できる |
 
 ### 脆弱性の報告
@@ -140,6 +143,8 @@ src/
   screens/    画面（メニュー・記録・履歴・メンバー・スタッツ・シーズン設定・バックアップ）
   components/ 共通 UI・SVG チャート
   demo/       デモ版のサンプルデータ
+vendor/
+  deepmerge/  ビルドで使う deepmerge に CVE-2026-93753 の修正を当てた写し（本家に修正版が出たら外す。README.md）
 ```
 
 ### 関連資料

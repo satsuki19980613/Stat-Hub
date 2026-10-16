@@ -187,7 +187,7 @@ export function ClubPanel(
       </div>
       {ownName === '' && (
         <p className="hint own-hint">
-          自分のクラブの名前を登録すると、順位表の公式の累計で線を引きます。
+          <span>自分のクラブの名前を登録すると、順位表の公式の累計で線を引きます。</span>
           <button type="button" className="lnk" onClick={props.onRegisterClub}>
             メンバー画面で登録
           </button>

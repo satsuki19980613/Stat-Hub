@@ -111,7 +111,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{ou
 @keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 
 /* ===== メニュー・一覧の見出し ===== */
-.list-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:10px 0 -4px}
+.list-h{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:10px 0 -4px}
 .list-h .rt{font-family:var(--f-num);font-size:11px;font-weight:600;letter-spacing:.08em;color:var(--muted)}
 
 /* 大きな行ボタン */
@@ -135,9 +135,9 @@ button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{ou
 /* ===== pane 見出し・戻る ===== */
 .back{justify-self:start;border:0;background:none;padding:6px 0;font-family:var(--f-num);font-size:12px;font-weight:600;letter-spacing:.14em;color:var(--muted);cursor:pointer}
 .back:hover{color:var(--ink)}
-.pane-h{display:flex;align-items:baseline;gap:12px;margin:2px 0 2px;min-width:0}
+.pane-h{display:flex;align-items:flex-end;gap:12px;margin:2px 0 2px;min-width:0}
 .pane-h b{font-size:20px;font-weight:700}
-.pane-h .acts{margin-left:auto;display:flex;gap:6px;align-self:center}
+.pane-h .acts{margin-left:auto;display:flex;align-items:center;gap:6px;align-self:center}
 .hint{font-size:12px;color:var(--muted);line-height:1.6;margin:0}
 
 /* ===== ボタン ===== */
@@ -310,7 +310,8 @@ dialog:focus,dialog:focus-visible{outline:none}
   .nbtn::after{content:'';position:absolute;inset:-5px -1px}
 }
 @media (max-height:560px){.mbtn{min-height:52px;font-size:18px}}
-@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+/* 動きを減らす設定：#root の中（ダイアログ・トーストも含む）の動きを止める。id で、クラスの指定より強くする */
+@media (prefers-reduced-motion:reduce){#root *,#root *::before,#root *::after{animation:none;transition:none}}
 
 /* ===================================================================
    Stat Hub 固有
@@ -613,8 +614,6 @@ p,.hint,.notice,small,.mbtn small{text-wrap:pretty}
 .cmp-pick select{min-width:0}
 
 /* ===== 見出し・インフォメーションマーク（小さな説明はすべてここから開くモーダルへ） ===== */
-.list-h{align-items:center}
-.pane-h{align-items:flex-end}
 .ph-t{display:inline-flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0}
 .ph-t b{line-height:1.3}
 .gd-head .eyebrow{margin-bottom:2px}
@@ -625,7 +624,6 @@ p,.hint,.notice,small,.mbtn small{text-wrap:pretty}
 .info-btn:active{transform:scale(.9)}
 @media (hover:hover){.info-btn:hover{color:var(--ink)}}
 .pt{display:inline-flex;align-items:center;gap:4px;min-width:0}
-.pane-h .acts{align-items:center}
 .lbl-row{display:flex;align-items:center;gap:4px;margin:12px 0 5px}
 .lbl-row .lbl{margin:0}
 .gd-scroll h3 .info-btn{margin-left:-2px}
