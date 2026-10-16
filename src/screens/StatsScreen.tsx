@@ -24,26 +24,12 @@ import {
   type TrendMetric,
 } from '../domain/views';
 import type { ClubState } from '../data/clubData';
-import { DEMO } from '../clock';
-import { DEMO_OWN_CLUB } from '../demo/ownClub';
 import { CLUB_CAPACITY, latestRound, perMemberSeries, type ClubEntry, type ClubRound } from '../domain/clubRanking';
 import { ClubPanel } from './ClubPanel';
 import { SeasonSelect } from './common';
 
 type Mode = 'season' | 'trend';
 const CMP_KEY = 'sh-member-cmp';
-/** 自分のクラブの名前（利用者が入力する。'' は入力していない）。 */
-const OWN_KEY = 'sh-own-club';
-
-function readOwn(): string {
-  try {
-    const v = localStorage.getItem(OWN_KEY);
-    if (v !== null) return v;
-  } catch {
-    /* noop */
-  }
-  return DEMO ? DEMO_OWN_CLUB : '';
-}
 type SortKey = 'name' | 'total' | 'avg' | 'plusRate' | 'winRate' | 'avgRank' | 'n' | 'survival';
 
 const COLS: { key: SortKey; label: string; title: string }[] = [
@@ -355,6 +341,10 @@ export function StatsScreen(
     focus: FocusEntry[];
     onToggleFocus: (id: string) => void;
     onClearFocus: () => void;
+    /** 自分のクラブの名前（メンバー画面で登録。'' は未登録）。 */
+    ownClub: string;
+    /** メンバー画面へ（自分のクラブを登録する）。 */
+    onRegisterClub: () => void;
     onBack: () => void;
   }>,
 ): JSX.Element {
@@ -373,16 +363,8 @@ export function StatsScreen(
   const avgRow = memberAverage(rows, club);
   const axis = seasonAxis(data, season);
 
-  // 自分のクラブ（端末に覚えておく）。クラブ順位のパネルで名前を入れ、順位表に同じ名前があれば比べる相手の候補からは外す。
-  const [ownClub, setOwnClubState] = useState<string>(readOwn);
-  function setOwnClub(name: string): void {
-    setOwnClubState(name);
-    try {
-      localStorage.setItem(OWN_KEY, name);
-    } catch {
-      /* noop */
-    }
-  }
+  // 自分のクラブ（メンバー画面で登録）。順位表に同じ名前があれば比べる相手の候補からは外す。
+  const ownClub = props.ownClub;
 
   // 他クラブ（1 人あたり）との比較。選んだものは端末に覚えておく（一覧にある値だけ）。
   const [cmp, setCmp] = useState<string>(readCmp);
@@ -543,7 +525,7 @@ export function StatsScreen(
             </ScrollBox>
           </section>
 
-          <ClubPanel data={data} club={props.club} season={season} today={today} ownClub={ownClub} onOwnClub={setOwnClub} />
+          <ClubPanel data={data} club={props.club} season={season} today={today} ownClub={ownClub} onRegisterClub={props.onRegisterClub} />
         </>
       )}
 

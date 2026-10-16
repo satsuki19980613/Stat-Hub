@@ -8,10 +8,12 @@ import { draftFromRecords, planDay, type Draft } from './domain/dayEntry';
 import { DEMO, today as todayIso } from './clock';
 import { parseFocus, toggleFocus, type FocusEntry } from './domain/focus';
 import { newId, type AppData, type MatchRecord, type Member, type SeasonOverride, type StatSnapshot } from './domain/model';
+import { clubNames } from './domain/clubRanking';
 import { currentSeason, seasonList } from './domain/season';
 import { baseForCount } from './domain/stats';
 import { seasonRows } from './domain/views';
 import * as autoBackup from './data/autoBackup';
+import { readOwnClub, saveOwnClub } from './data/ownClub';
 import { fetchClub, loadCachedClub, type ClubState } from './data/clubData';
 import type { FileStatus } from './data/autoBackup';
 import * as store from './data/store';
@@ -64,6 +66,8 @@ export function App(): JSX.Element {
   const [viewSeason, setViewSeason] = useState<number | null>(null);
   const [focus, setFocus] = useState<FocusEntry[]>([]);
   const [backupOpen, setBackupOpen] = useState(false);
+  // 自分のクラブの名前（メンバー画面で登録。スタッツのクラブ順位で使う）。
+  const [ownClub, setOwnClubState] = useState<string>(readOwnClub);
   const [fileStatus, setFileStatus] = useState<FileStatus>({ state: 'unsupported' });
   const [persisted, setPersisted] = useState<boolean | null>(null);
   const backupTimer = useRef<number | undefined>(undefined);
@@ -379,6 +383,15 @@ export function App(): JSX.Element {
     [],
   );
 
+  function setOwnClub(name: string): void {
+    setOwnClubState(name);
+    saveOwnClub(name);
+  }
+
+  /** 自分のクラブの入力の候補：クラブ順位のいちばん新しいシーズンに載ったクラブ。 */
+  const latestClubSeason = club.data?.rounds.at(-1)?.season;
+  const ownClubCandidates = club.data && latestClubSeason != null ? clubNames(club.data, latestClubSeason) : [];
+
   function toggleTheme(e: React.MouseEvent<HTMLButtonElement>): void {
     const r = document.documentElement;
     // ライトとダークを入れ替え、端末に覚えておく（次に開いたときも同じ。public/theme.js）。
@@ -509,6 +522,9 @@ export function App(): JSX.Element {
                   onArchive={(m, a) => void setArchived(m, a)}
                   onPurge={(m) => void purge(m)}
                   onDeleteSnapshot={(s) => void run(() => store.deleteSnapshot(s.id), 'スタッツを削除しました')}
+                  ownClub={ownClub}
+                  clubNames={ownClubCandidates}
+                  onOwnClub={setOwnClub}
                   onBack={pop}
                 />
               )}
@@ -523,6 +539,8 @@ export function App(): JSX.Element {
                   focus={focus}
                   onToggleFocus={(id) => setFocus((f) => toggleFocus(f, id))}
                   onClearFocus={() => setFocus([])}
+                  ownClub={ownClub}
+                  onRegisterClub={() => navTab('members')}
                   onBack={pop}
                 />
               )}

@@ -21,10 +21,15 @@ function newestFirst(a: StatSnapshot, b: StatSnapshot): number {
   return b.date < a.date ? -1 : 1;
 }
 
-/** メンバー情報登録。人数に上限はない（代走も登録する）。外した人はアーカイブに残す。 */
+/** メンバー情報登録。人数に上限はない（代走も登録する）。外した人はアーカイブに残す。自分のクラブの名前もここで登録する。 */
 export function MembersScreen(props: Readonly<{
   data: AppData;
   today: string;
+  /** 自分のクラブの名前（'' は未登録）。 */
+  ownClub: string;
+  /** 入力の候補（クラブ順位に載っているクラブ）。 */
+  clubNames: readonly string[];
+  onOwnClub: (name: string) => void;
   onSave: (s: MemberSave) => Promise<string | null>;
   onArchive: (m: Member, archived: boolean) => void;
   onPurge: (m: Member) => void;
@@ -76,6 +81,7 @@ export function MembersScreen(props: Readonly<{
               ['参加回数', 'はじめにこれまでの回数を入れると、あとは記録するたびに自動で +1 されます。'],
               ['基本スタッツ', '優勝回数・VPIP・参加ハンド数は任意です。入力した日の値として残り、生存ターン数の計算に使います。'],
               ['右の数字', '最新のスタッツから計算した生存ターン数です。'],
+              ['自分のクラブ', 'クラブの名前です（任意）。上位 30 のクラブ順位に載っているクラブは、入力中に候補が出ます。順位に同じ名前があると、スタッツのクラブ順位のグラフでそのクラブの公式の累計を使います。'],
             ]}
           />
         </InfoButton>
@@ -83,6 +89,26 @@ export function MembersScreen(props: Readonly<{
           ＋ 追加
         </button>
       </PaneHead>
+      <label className="own-pick panel">
+        <span>自分のクラブ</span>
+        <input
+          className="tin txt"
+          type="text"
+          list="sh-own-clubs"
+          value={props.ownClub}
+          onChange={(e) => props.onOwnClub(e.target.value)}
+          onBlur={(e) => props.onOwnClub(e.target.value.trim())}
+          placeholder="クラブ名を入力"
+          maxLength={40}
+          autoComplete="off"
+          enterKeyHint="done"
+        />
+        <datalist id="sh-own-clubs">
+          {props.clubNames.map((name) => (
+            <option key={name} value={name} />
+          ))}
+        </datalist>
+      </label>
       <p className="hint">
         有効メンバー <b className="num">{active.length}</b> 人
       </p>

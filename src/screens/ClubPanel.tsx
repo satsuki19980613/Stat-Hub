@@ -3,7 +3,7 @@ import { LineChart, type LineSeries } from '../components/charts';
 import { ScrollBox } from '../components/ScrollBox';
 import { InfoButton, InfoList } from '../components/ui';
 import type { ClubState } from '../data/clubData';
-import { clubNames, clubSeries, latestRound, ownSeries, topAverage, type ClubEntry, type ClubRound } from '../domain/clubRanking';
+import { clubSeries, latestRound, ownSeries, topAverage, type ClubEntry, type ClubRound } from '../domain/clubRanking';
 import type { AppData } from '../domain/model';
 import { clubAppTotals, clubAxisLabels, clubAxisLength } from '../domain/views';
 
@@ -92,11 +92,11 @@ function ClubRow(props: Readonly<{ c: ClubEntry; round: number; isOwn: boolean; 
 /**
  * クラブ順位（上位 30）との比較。メンバーのグラフとは別のパネルにして、単位（クラブの累計）を混ぜない。
  * 線は 3 本まで: 自分のクラブ（オレンジ）・選んだクラブ（青）・上位 30 平均（点線）。比べるクラブは右上のプルダウンで選ぶ。
- * 自分のクラブは下の欄に名前を入れる（順位表にあるクラブは候補に出る）。順位表に同じ名前があればその節は公式の値、
- * 無い節と、入力していないときは、このアプリで記録した合計で線を引く。
+ * 自分のクラブはメンバー画面で名前を登録する。順位表に同じ名前があればその節は公式の値、
+ * 無い節と、登録していないときは、このアプリで記録した合計で線を引く。
  */
 export function ClubPanel(
-  props: Readonly<{ data: AppData; club: ClubState; season: number; today: string; ownClub: string; onOwnClub: (name: string) => void }>,
+  props: Readonly<{ data: AppData; club: ClubState; season: number; today: string; ownClub: string; onRegisterClub: () => void }>,
 ): JSX.Element {
   const { data, club, season, today, ownClub } = props;
   const ownName = ownClub.trim();
@@ -111,8 +111,6 @@ export function ClubPanel(
   const others = (latest?.clubs ?? []).filter((c) => c.name !== ownName);
   const picked = others.find((c) => c.name === pick) ?? null;
   const ownNow = ownName === '' ? null : (latest?.clubs.find((c) => c.name === ownName) ?? null);
-  // 自分のクラブの入力の候補：このシーズンの順位表に載ったクラブ。
-  const names = cd ? clubNames(cd, season) : [];
   const ownLabel = ownName || OWN_LABEL;
   // 一覧にあるクラブ名だけを保存する（まだ読み込み前などで一覧に無いときは、保存済みの値をそのまま残す）。
   const stored = storablePick(pick, picked);
@@ -138,7 +136,7 @@ export function ClubPanel(
             <p>クラブマッチの上位 30 クラブの累計ポイントです。X の @c0pmvd さんが毎節ポストしている集計を取り込んでいます。</p>
             <InfoList
               items={[
-                ['自クラブ', '下の「自分のクラブ」に入れたクラブ（順位表にあるクラブは入力中に候補が出ます）。上位 30 に入った節は公式の値、圏外の節はこのアプリで記録したポイントの合計です。入れるまでは、すべて記録の合計で線を引きます。'],
+                ['自クラブ', 'メンバー画面の「自分のクラブ」で登録したクラブ。上位 30 に入った節は公式の値、圏外の節はこのアプリで記録したポイントの合計です。登録するまでは、すべて記録の合計で線を引きます。'],
                 ['選んだクラブ', '右上のプルダウンか、表の行を押して選びます。もう一度押すと外れます。'],
                 ['破線', '上位 30 クラブの累計の平均。'],
                 ['表', '最新の節の順位。↑↓ は前の節からの上がり下がり、new は圏外から入ったクラブ。「—」は圏外から入ったため、その節の得点がポストに無いものです。'],
@@ -187,26 +185,14 @@ export function ClubPanel(
           </span>
         )}
       </div>
-      <label className="own-pick">
-        <span>自分のクラブ</span>
-        <input
-          className="tin txt"
-          type="text"
-          list="sh-own-clubs"
-          value={ownClub}
-          onChange={(e) => props.onOwnClub(e.target.value)}
-          onBlur={(e) => props.onOwnClub(e.target.value.trim())}
-          placeholder="クラブ名を入力"
-          maxLength={40}
-          autoComplete="off"
-          enterKeyHint="done"
-        />
-        <datalist id="sh-own-clubs">
-          {names.map((name) => (
-            <option key={name} value={name} />
-          ))}
-        </datalist>
-      </label>
+      {ownName === '' && (
+        <p className="hint own-hint">
+          自分のクラブの名前を登録すると、順位表の公式の累計で線を引きます。
+          <button type="button" className="lnk" onClick={props.onRegisterClub}>
+            メンバー画面で登録
+          </button>
+        </p>
+      )}
 
       {latest && (
         <ScrollBox className="tbl-scroll fixed club-tbl">
