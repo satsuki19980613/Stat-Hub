@@ -1,7 +1,7 @@
 {
  "format": "stat-hub-club-ranking",
  "version": 1,
- "updatedAt": "2026-10-16T04:40:35.984Z",
+ "updatedAt": "2026-10-16T04:47:54.683Z",
  "rounds": [
   {"season": 31, "round": 1, "clubs": [
     {"rank":1,"prev":null,"name":"【γ】","total":56,"gain":56},
@@ -181,7 +181,13 @@
     {"rank":13,"prev":11,"name":"SHIELDS","total":225,"gain":32},
     {"rank":16,"prev":16,"name":"Azul Ardiente","total":224,"gain":43},
     {"rank":17,"prev":17,"name":"シニチロー門","total":218,"gain":38},
-    {"rank":17,"prev":23,"name":"ぶちまろふぁんくらぶ","total":218,"gain":46}
+    {"rank":17,"prev":23,"name":"ぶちまろふぁんくらぶ","total":218,"gain":46},
+    {"rank":19,"prev":22,"name":"ポーカー攻略部","total":213,"gain":39},
+    {"rank":20,"prev":19,"name":"33−4","total":212,"gain":36},
+    {"rank":21,"prev":24,"name":"髭 HOUSE","total":207,"gain":36},
+    {"rank":22,"prev":20,"name":"SANG-FROID","total":205,"gain":30},
+    {"rank":23,"prev":24,"name":"Famous Day","total":202,"gain":31},
+    {"rank":24,"prev":17,"name":"ポカたまですこ","total":201,"gain":21}
   ]}
  ]
 }
