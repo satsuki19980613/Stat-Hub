@@ -143,6 +143,8 @@ src/
   screens/    画面（メニュー・記録・履歴・メンバー・スタッツ・シーズン設定・バックアップ）
   components/ 共通 UI・SVG チャート
   demo/       デモ版のサンプルデータ
+vendor/
+  deepmerge/  ビルドで使う deepmerge に CVE-2026-93753 の修正を当てた写し（本家に修正版が出たら外す。README.md）
 ```
 
 ### 関連資料
