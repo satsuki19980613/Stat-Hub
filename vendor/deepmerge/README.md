@@ -1,6 +1,6 @@
 # deepmerge（修正を当てた写し）
 
-[deepmerge](https://github.com/TehShrike/deepmerge) 4.3.1（MIT。`license.txt`）の `dist/cjs.js` に、
+[deepmerge](https://github.com/TehShrike/deepmerge) 4.3.1（MIT。`license.txt`）の `dist/cjs.js` を `cjs.js` に置き（`dist/` はリポジトリの .gitignore で外れるため）、
 [CVE-2026-93753](https://nvd.nist.gov/vuln/detail/CVE-2026-93753)（`mergeObject` のプロトタイプ汚染）の修正だけを当てたもの。
 `__proto__`・`constructor`・`prototype` のキーを写さない（`keyIsForbidden`）。
 

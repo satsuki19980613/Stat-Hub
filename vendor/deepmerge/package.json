@@ -3,7 +3,7 @@
   "version": "4.3.1",
   "description": "deepmerge 4.3.1 に CVE-2026-93753（プロトタイプ汚染）の修正を当てた写し。本家に修正版が出たら外す（vendor/deepmerge/README.md）",
   "license": "MIT",
-  "main": "dist/cjs.js",
+  "main": "cjs.js",
   "types": "index.d.ts",
   "private": true
 }
